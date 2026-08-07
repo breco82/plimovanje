@@ -178,14 +178,14 @@ body {
 /* Main Content Layout Grid */
 .main-content-layout {
     display: grid;
-    grid-template-columns: 320px 1fr;
+    grid-template-columns: 320px minmax(0, 1fr); /* minmax(0, 1fr) prevents Highcharts from locking/blowing out the grid column width */
     gap: 1.5rem;
     align-items: start;
 }
 
 @media (max-width: 900px) {
     .main-content-layout {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
     }
 }
 
@@ -198,6 +198,7 @@ body {
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.15);
+    min-width: 0; /* Prevents content from locking the container width during orientation changes */
 }
 
 .sidebar-card h2 {
@@ -334,6 +335,7 @@ body {
     flex-direction: column;
     gap: 1.25rem;
     height: 520px;
+    min-width: 0; /* Prevents Highcharts SVG canvas width from locking the card size during rotation */
 }
 
 @media (max-width: 600px) {

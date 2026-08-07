@@ -6,6 +6,7 @@ let chartMode = 'level'; // 'level' or 'temp'
 let periodHours = 24;   // 24, 72, or 168
 let actualData = [];    // Loaded ARSO measurements
 let currentChart = null; // Highcharts instance
+let meteoForecastMap = new Map(); // Open-Meteo hourly pressure and wind map
 
 // Datum offset constant (Srednja gladina morja / Mean sea level - SVS2010 reference datum is 217.0 cm above gauge zero)
 const MEAN_SEA_LEVEL_OFFSET = 217.0;
@@ -283,11 +284,46 @@ async function loadMergedWaterData() {
     return Array.from(mergedMap.values()).sort((a, b) => a.time - b.time);
 }
 
+async function loadMeteoData() {
+    try {
+        // Fetch 31 days of history and 3 days of forecast from Open-Meteo for Koper
+        const url = 'https://api.open-meteo.com/v1/forecast?latitude=45.5469&longitude=13.7294&hourly=pressure_msl,wind_speed_10m,wind_direction_10m&past_days=31&forecast_days=3&timezone=auto';
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("Meteo API response not ok");
+        const json = await response.json();
+        
+        if (json && json.hourly && json.hourly.time) {
+            meteoForecastMap.clear();
+            const times = json.hourly.time;
+            const pressures = json.hourly.pressure_msl;
+            const windSpeeds = json.hourly.wind_speed_10m;
+            const windDirections = json.hourly.wind_direction_10m;
+            
+            for (let i = 0; i < times.length; i++) {
+                const date = new Date(times[i]);
+                const timeMs = date.getTime();
+                meteoForecastMap.set(timeMs, {
+                    pressure: pressures[i],
+                    windSpeed: windSpeeds[i], // km/h
+                    windDir: windDirections[i] // degrees
+                });
+            }
+            console.log(`Loaded ${meteoForecastMap.size} Open-Meteo weather points.`);
+        }
+    } catch (e) {
+        console.error("Error loading meteorological forecast:", e);
+    }
+}
+
 async function refreshData() {
     try {
-        // Fetch merged data (24h + 30d)
+        // Fetch merged data (24h + 30d) and weather forecast in parallel
+        const meteoPromise = loadMeteoData();
         actualData = await loadMergedWaterData();
         if (!actualData || actualData.length === 0) throw new Error("Data empty");
+        
+        // Wait for weather data to finish loading
+        await meteoPromise;
         
         // Cache data to LocalStorage
         try {
@@ -514,6 +550,38 @@ function renderChart() {
         // Map predicted levels (already relative)
         const predictedSeriesData = predictions.map(d => [d.time.getTime(), d.level]);
         
+        // Calculate hybrid predictions (astronomical tide + pressure & wind correction from Open-Meteo)
+        const hybridSeriesData = [];
+        predictions.forEach(d => {
+            const timeMs = d.time.getTime();
+            
+            // Find closest hourly weather data point (round to nearest hour)
+            const hourMs = Math.round(timeMs / (3600 * 1000)) * (3600 * 1000);
+            const meteo = meteoForecastMap.get(hourMs);
+            
+            if (meteo) {
+                // Pressure correction: 1013.25 - pressure in hPa = correction in cm
+                const pCorr = 1013.25 - meteo.pressure;
+                
+                // Wind correction: projection onto Adriatic axis (150 degrees)
+                const windSpeedMs = meteo.windSpeed / 3.6; // km/h to m/s
+                const angleRad = (meteo.windDir - 150) * Math.PI / 180;
+                const vEff = windSpeedMs * Math.cos(angleRad);
+                
+                let wCorr = 0;
+                if (vEff > 0) {
+                    wCorr = 0.22 * vEff * vEff; // Jugo water accumulation
+                } else {
+                    wCorr = 0.06 * vEff * Math.abs(vEff); // Burja water blow-out
+                }
+                
+                const totalCorr = pCorr + wCorr;
+                const hybridVal = d.level + totalCorr;
+                
+                hybridSeriesData.push([timeMs, hybridVal]);
+            }
+        });
+        
         series = [
             {
                 name: 'Izmerjena gladina (ARSO)',
@@ -535,6 +603,16 @@ function renderChart() {
                 color: '#10b981', // Distinct green
                 dashStyle: 'ShortDash',
                 opacity: 0.85,
+                marker: { enabled: false }
+            },
+            {
+                name: 'Hibridna napoved (beta)',
+                data: hybridSeriesData,
+                type: 'spline',
+                color: '#eab308', // Vivid yellow
+                dashStyle: 'ShortDot',
+                opacity: 0.95,
+                visible: false, // Disabled by default, user can turn it on by clicking legend
                 marker: { enabled: false }
             }
         ];
@@ -665,7 +743,12 @@ function renderChart() {
                     if (chartMode === 'level') {
                         const relVal = Math.round(point.y);
                         const sign = relVal >= 0 ? '+' : '';
-                        const prefix = point.series.name.includes('Izmerjena') ? 'DEJ' : 'NAP';
+                        let prefix = 'NAP';
+                        if (point.series.name.includes('Izmerjena')) {
+                            prefix = 'DEJ';
+                        } else if (point.series.name.includes('Hibridna')) {
+                            prefix = 'HIB';
+                        }
                         s += `<span style="color:${point.color}">●</span> ${prefix}: <b>${sign}${relVal} cm</b><br/>`;
                     } else {
                         const val = point.y.toFixed(1);

@@ -592,8 +592,7 @@ function renderChart() {
             useUTC: false
         },
         title: {
-            text: (window.innerHeight < 500) ? null : chartTitle, // Hide title in landscape mode to save space
-            style: { color: titleColor, fontWeight: '600', fontSize: '15px' }
+            text: null // Disable title entirely for cleaner UI and maximum vertical chart space
         },
         credits: { enabled: false },
         rangeSelector: {

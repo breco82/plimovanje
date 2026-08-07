@@ -200,6 +200,9 @@
 
             <!-- Main Interactive Chart Card -->
             <main class="chart-container-card">
+                <button class="fullscreen-btn" id="fullscreen-btn" onclick="toggleFullscreen()" title="Celozaslonski način">
+                    <i class="fa-solid fa-expand"></i>
+                </button>
                 <div class="chart-header">
                     <div class="chart-modes">
                         <button class="mode-btn active" id="mode-level" onclick="setChartMode('level')">
@@ -216,9 +219,6 @@
                             <button class="period-btn" id="period-7d" onclick="setPeriod(168)">7 dni</button>
                             <button class="period-btn" id="period-30d" onclick="setPeriod(720)">30 dni</button>
                         </div>
-                        <button class="fullscreen-btn" id="fullscreen-btn" onclick="toggleFullscreen()" title="Celozaslonski način">
-                            <i class="fa-solid fa-expand"></i>
-                        </button>
                     </div>
                 </div>
                 

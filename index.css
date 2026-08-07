@@ -322,6 +322,7 @@ body {
 
 /* Main Chart Card Styling */
 .chart-container-card {
+    position: relative;
     background: var(--card-bg);
     border: 1px solid var(--border-color);
     border-radius: 16px;
@@ -358,6 +359,7 @@ body {
     align-items: center;
     flex-wrap: wrap;
     gap: 0.75rem;
+    margin-right: 45px; /* Leave space for floating fullscreen button */
 }
 
 /* Tab/Button Groups */
@@ -491,11 +493,14 @@ body {
 
 /* Fullscreen Toggle Buttons & Styles */
 .fullscreen-btn {
+    position: absolute;
+    top: 1.5rem;
+    right: 1.5rem;
+    z-index: 10;
     border: 1px solid rgba(255, 255, 255, 0.05);
     background: rgba(255, 255, 255, 0.03);
     color: var(--text-secondary);
     font-size: 0.9rem;
-    padding: 0.5rem;
     border-radius: 10px;
     cursor: pointer;
     width: 36px;
@@ -511,6 +516,13 @@ body {
     border-color: rgba(255, 255, 255, 0.15);
 }
 
+@media (max-width: 600px) {
+    .fullscreen-btn {
+        top: 0.75rem;
+        right: 0.75rem;
+    }
+}
+
 .chart-container-card.fullscreen-active {
     position: fixed;
     top: 0;
@@ -522,6 +534,18 @@ body {
     border: none;
     padding: 1rem;
     background: var(--bg-color);
+    touch-action: none !important; /* Prevent page dragging / elastic scrolling / Safari address bar popups */
+}
+
+/* Hide controls completely in fullscreen mode - uses the settings selected in normal mode */
+.chart-container-card.fullscreen-active .chart-header {
+    display: none !important;
+}
+
+/* Float the exit button in the top-right corner during fullscreen */
+.chart-container-card.fullscreen-active .fullscreen-btn {
+    top: 1rem;
+    right: 1rem;
 }
 
 .chart-wrapper {
@@ -558,12 +582,15 @@ body {
     }
     .chart-header {
         gap: 0.35rem;
+        margin-right: 40px; /* Leave room for absolute fullscreen button */
     }
     .mode-btn, .period-btn {
         padding: 0.4rem 0.65rem;
         font-size: 0.8rem;
     }
     .fullscreen-btn {
+        top: 0.75rem;
+        right: 0.75rem;
         width: 32px;
         height: 32px;
     }
@@ -571,47 +598,26 @@ body {
         display: none !important;
     }
     
-    /* Side-by-side layout in fullscreen landscape to give the chart maximum height */
+    /* Clean, immersive 100% fullscreen chart in landscape mode */
     .chart-container-card.fullscreen-active {
-        display: flex;
-        flex-direction: row !important;
         padding: 0.4rem;
         height: 100vh !important;
-        gap: 0.5rem;
-    }
-    .chart-container-card.fullscreen-active .chart-header {
         display: flex;
         flex-direction: column !important;
-        width: 140px;
-        flex-shrink: 0;
-        align-items: stretch;
-        gap: 0.4rem;
-    }
-    .chart-container-card.fullscreen-active .chart-modes,
-    .chart-container-card.fullscreen-active .chart-periods {
-        display: flex;
-        flex-direction: column !important;
-        width: 100%;
-        background: rgba(255, 255, 255, 0.03);
-        padding: 0.15rem;
-    }
-    .chart-container-card.fullscreen-active .mode-btn,
-    .chart-container-card.fullscreen-active .period-btn {
-        padding: 0.45rem 0.3rem;
-        font-size: 0.7rem;
-        justify-content: center;
-        text-align: center;
-        width: 100%;
+        gap: 0;
     }
     .chart-container-card.fullscreen-active .fullscreen-btn {
-        width: 100%;
+        top: 0.5rem;
+        right: 0.5rem;
+        width: 32px;
         height: 32px;
-        margin-top: auto; /* Push fullscreen button to the bottom of the left column */
     }
     .chart-container-card.fullscreen-active .chart-wrapper {
         flex-grow: 1;
         height: 100%;
+        width: 100%;
         min-width: 0;
+        touch-action: pan-x !important; /* Block all page-level swipes to lock Safari viewport */
     }
 }
 

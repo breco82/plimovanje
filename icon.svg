@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#020617" />
+    </linearGradient>
+    <linearGradient id="wave-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#0ea5e9" />
+    </linearGradient>
+  </defs>
+  <!-- Background Circle -->
+  <circle cx="256" cy="256" r="240" fill="url(#bg-grad)" stroke="#1e293b" stroke-width="12" />
+  <circle cx="256" cy="256" r="230" fill="none" stroke="#38bdf8" stroke-width="4" stroke-opacity="0.3" />
+  
+  <!-- Wave Symbols -->
+  <g fill="none" stroke="url(#wave-grad)" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Top Wave -->
+    <path d="M 120,210 C 160,170 200,170 240,210 C 280,250 320,250 360,210" />
+    <!-- Middle Wave -->
+    <path d="M 80,280 C 140,220 200,220 260,280 C 320,340 380,340 440,280" stroke-width="28" />
+    <!-- Bottom Wave -->
+    <path d="M 120,350 C 160,310 200,310 240,350 C 280,390 320,390 360,350" />
+  </g>
+  
+  <!-- Glowing Indicator Dot (Tide Gauge Zero reference) -->
+  <circle cx="260" cy="280" r="14" fill="#10b981" />
+</svg>

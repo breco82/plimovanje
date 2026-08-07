@@ -1,0 +1,189 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <title>Napoved vodostajev</title>
+  <link rel="stylesheet" type="text/css" href="/stil/ogrodje.css" />
+  <link rel="stylesheet" type="text/css" href="/stil/stran.css" />
+  <link rel="icon" type="image/gif" href="/stil/znak.gif" />
+
+</head>
+
+<body>
+    <div id="meniz">
+    <a class="domov" href="/">&nbsp;</a>
+    <div id="meniz-l">
+      <p><a href="/en/">English</a></p>
+      <p><select onchange="window.location.href = options[selectedIndex].value;">
+        <option value="" selected="selected">DrÅ¾avne ustanove</option>
+        <option value="">------------------</option>
+        <option value="http://www.kpv.gov.si">Predsednik vlade</option>
+        <option value="http://www.vlada.si/">Vlada RS</option>
+        <option value="http://www.vlada.si/si/o_vladi/kdo_je_kdo/ministrstva/">Ministrstva</option>
+        <option value="http://www.up-rs.si/">Predsednik RS</option>
+        <option value="http://www.dz-rs.si/">DrÅ¾avni zbor</option>
+        <option value="http://www.ds-rs.si/">DrÅ¾avni svet</option>
+        <option value="http://www.us-rs.si/">Ustavno sodiÅ¡Äe</option>
+        <option value="http://www.sodisce.si/">Vrhovno sodiÅ¡Äe</option>
+        <option value="http://www.rs-rs.si/">RaÄunsko sodiÅ¡Äe</option>
+        <option value="http://www.varuh-rs.si/">Varuh Älovekovih pravic</option>
+        <option value="http://www.ip-rs.si">Informacijski pooblaÅ¡Äenec</option>
+        <option value="http://e-uprava.gov.si/e-uprava/">e-uprava</option>
+        <option value="http://upravneenote.gov.si/">Portal upravnih enot</option>
+      </select></p>
+      <p>
+        <a href="/o%20agenciji/">O agenciji</a>
+      </p>
+      <p>&nbsp;</p>
+<!-- Search Google -->
+<!-- slovensko lokalno -->
+        <form method="GET" action="http://www.google.com/search">
+          <input type="text" name="q" size="17" maxlength="255" value="po tem naslovu" class="srchtxt">
+          <input type="submit" name="sa" value="najdi" class="srchtxt">
+          <input type="hidden" name="sitesearch" value="www.arso.gov.si">
+	    <INPUT type="hidden" name="ie" value="UTF-8"> 
+	    <INPUT type="hidden" name="oe" value="UTF-8">
+        </form>
+<br />
+<!-- po vseh arso straneh -->
+        <form method="GET" action="http://www.google.com/search">
+          <input type="text" name="q" size="17" maxlength="255" value="po vseh ARSO straneh" class="srchtxt">
+          <input type="submit" name="sa" value="najdi" class="srchtxt">
+          <input type="hidden" name="sitesearch" value="arso.gov.si">
+	    <INPUT type="hidden" name="ie" value="UTF-8"> 
+	    <INPUT type="hidden" name="oe" value="UTF-8">
+        </form>
+<br />
+<!-- /Search Google -->
+    </div>
+  </div>
+
+  <!-- meni 1 -->
+  <table id="meni1">
+    <tr>
+      <td class="domov">
+        <a href="/">&nbsp;</a>
+      </td>
+      <td class="child2"><a href="/vreme/">vreme</a></td><td class="izbran"><a href="/vode/">vode</a></td><td class="child3"><a href="/varstvo%20okolja/">varstvo okolja</a></td><td class="child4"><a href="/podnebne%20spremembe/">podnebne spremembe</a></td><td class="child5"><a href="/potresi/">potresi</a></td><td class="child6"><a href="/zrak/">zrak</a></td>
+    </tr>
+  </table>
+  <!-- /meni 1 -->
+  
+  <div id="lokacija">
+    <a href="/">ARSO</a> &gt; <a href="/vode/">vode</a> &gt; <a href="/vode/napovedi/">napovedi</a>
+  </div>
+  
+  <table id="glavna">
+    <tr>
+      <td class="meni2">
+        <div class="zadeva">
+	  <!--a href="/vode/" id="nivo1">Vode</a -->
+        </div>
+        <!-- meni 2 -->
+        <div id="meni2">
+          <div><a href="/vode/opozorila/">Opozorila</a></div><div class="izbran"><a href="/vode/napovedi/">Napovedi</a></div><div class="nivo2"></div><div><a href="/vode/podatki/">Podatki</a></div><div><a href="/vode/morje/">Morje</a></div><div><a href="/vode/reke/">Reke</a></div><div><a href="/vode/jezera/">Jezera</a></div><div><a href="/vode/podzemne%20vode/">Podzemne vode</a></div><div><a href="/vode/kopalne%20vode/">Kopalne vode</a></div><div><a href="/vode/poro%c4%8dila%20in%20publikacije/">PoroÄila in publikacije</a></div><div><a href="/vode/vpra%c5%a1anja%20in%20odgovori/">VpraÅ¡anja in odgovori</a></div><div><a href="/vode/povezave/">Povezave</a></div>
+        </div>
+        <!-- /meni 2 -->
+      </td>
+      <td class="vsebina">
+        <div id="opozorila" class="vsebina"><div class="zadeva">opozorila</div><div style="background-image: url('/stil/opozorila/vreme_s.png');"><a href="/vreme/opozorila/">Velika toplotna obremenitev in poÅ¾arna ogroÅ¾enost</a></div></div>
+        <div class="zadeva">Vode</div>
+        
+
+<h1>HidroloÅ¡ko stanje in napoved</h1>
+
+<p class="datum">Sreda, 5. avgusta 2026, ob 8. uri</p>
+<p>Vodnatost rek po Sloveniji je mala in se zelo poÄasi zmanjÅ¡uje. VeÄina rek ima pretoke manjÅ¡e od obiÄajnih malih za ta letni Äas. Le Kolpa v spodnjem toku ter posamezne manjÅ¡e reke, predvsem na severu in jugozahodu drÅ¾ave, Å¡e ohranjajo obiÄajno malo vodnatost.<br><br>Danes in jutri bodo reke povsod po drÅ¾avi Å¡e poÄasi upadale. V petek zveÄer in v noÄi na soboto bodo narasle manjÅ¡e reke na severu drÅ¾ave. Posamezne reke bodo pri tem lahko prehodno dosegle srednje pretoke. Ob lokalno intenzivnih padavinah lahko hitro narastejo posamezni hudourniÅ¡ki vodotoki. Drugod po drÅ¾avi bo vodnatost rek ostala nespremenjena.<br><br>Jutranja temperatura veÄine rek po Sloveniji je med 14 in 24 Â°C, Äez dan se segrejejo za 3 do 4 Â°C. Bohinjsko jezero ima 24, Blejsko 25, morje ob slovenski obali pa 28,5 Â°C.</p>
+
+
+<br>
+<br>
+<img alt="Napoved hidroloÅ¡ka za dan1 - slika " src="/vode/napovedi/fcast_SLOVENIA_d1.png" />
+<br>
+<br>
+<br>
+<img alt="Napoved hidroloÅ¡ka za dan2 - slika " src="/vode/napovedi/fcast_SLOVENIA_d2.png" />
+<br>
+<br>
+
+<P>
+&nbsp; <br> Opombe:
+</P>
+<P>
+V primeru napovedi obeh tipov poplavnega dogodka na istem obmoÄju, barva obmoÄja opredeljuje tip dogodka z viÅ¡jo stopnjo nevarnosti.
+</P>
+
+<P>
+<a href="/vode/opozorila/ARSO_Vode_Stopnje%20nevarnosti.pdf"> Opis stopenj nevarnosti in moÅ¾nih uÄinkov</a> <span class="velikost">[pdf, 177.3 KB]</span>
+</P>
+
+<P>
+<a href="/vode/opozorila/ARSO_Vode_Zemljevid%20obmocij.png">Zemljevid z imeni obmoÄij</a> <span class="velikost">[png, 259.4 KB]</span>
+</P>
+
+<P>
+Zaradi narave procesov ni mogoÄe napovedati in pravoÄasno izdati opozoril za vse nevarne okoljske dogodke, prav tako lahko prihaja do odstopanj napovedi in opozoril od dejanskega razvoja dogodkov.
+<a href="/omejitev_odgovornosti.html"> VeÄ...</a>
+</P>
+
+
+
+      </td>
+      
+        
+        
+        
+        
+      
+    </tr>
+  </table>
+
+    <div id="noga">
+    <div>
+      <h1>Kontakt</h1>
+      Agencija RS za okolje<br />
+      Vojkova 1b<br />
+      1000 Ljubljana, Slovenija<br />
+      Tel: +386 (0)1 4784 000<br />
+      <a href="mailto:gp.arso@gov.si">gp.arso@gov.si</a>
+    </div>
+    <div>
+      <h1>Izpostavljene vsebine</h1>
+      <a href="https://www.gov.si/drzavni-organi/organi-v-sestavi/agencija-za-okolje/">Novice</a><br />
+      <a href="https://www.gov.si/zbirke/katalogi-informacij-javnega-znacaja/?org=49">Katalog informacij javnega znaÄaja</a><br />
+      <a href="https://www.gov.si/drzavni-organi/organi-v-sestavi/agencija-za-okolje/javne-objave-agencije-za-okolje/">Razpisi</a><br />
+      <a href="https://www.gov.si/drzavni-organi/organi-v-sestavi/agencija-za-okolje/javne-objave-agencije-za-okolje/">Javna naznanila</a><br />
+      <a href="/Izjava_o_dostopnosti.html">Izjava o dostopnosti</a><br>
+    </div>
+    <div>
+      <h1>&nbsp;</h1>
+      <a href="https://www.gov.si/drzavni-organi/organi-v-sestavi/agencija-za-okolje/storitve-agencije-za-okolje/">Okoljski znaki</a><br />
+      <a href="https://www.gov.si/zbirke/projekti-in-programi/?org[]=49">EU sofinancira</a><br />
+      <a href="https://www.gov.si/drzavni-organi/organi-v-sestavi/agencija-za-okolje/o-agenciji-za-okolje/urad-za-okoljska-merjenja/">Laboratorij</a><br />
+      <a href="https://www.gov.si/drzavni-organi/organi-v-sestavi/agencija-za-okolje/">Uradne ure</a><br />
+      <a href="https://www.gov.si/drzavni-organi/organi-v-sestavi/agencija-za-okolje/">Kje smo</a><br />
+    </div>
+    <div>
+      <h1>Povezave</h1>
+      <a href="http://www.vlada.si/">Vlada Republike Slovenije</a><br />
+      <a href="http://www.vlada.si/si/o_vladi/kdo_je_kdo/ministrstva/">Ministrstva</a><br />
+      <a href="http://www.vlada.si/si/o_vladi/seznami_in_povezave/spletna_mesta_vladnih_sluzb/">Vladne sluÅ¾be</a><br />
+      <a href="http://www.dz-rs.si/">DrÅ¾avni zbor</a><br />
+      <a href="http://e-uprava.gov.si/e-uprava/">E-uprava</a><br />
+    </div>
+  </div>
+  <div id="noga2">
+    <div>
+      &copy; Agencija Republike Slovenije za okolje
+    </div>
+    <div>
+      <a href="/omejitev_odgovornosti.html">Omejitev odgovornosti</a><br>
+      <a href="/ostraneh.html">O spletnih straneh ARSO</a>
+    </div>
+  </div>
+
+  
+</body>
+
+</html>
+

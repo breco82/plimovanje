@@ -1,0 +1,18 @@
+{
+  "short_name": "Plimovanje",
+  "name": "Plimovanje Koper",
+  "description": "Spremljanje gladine morja in plimovanja v Sloveniji.",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#080f1a",
+  "theme_color": "#080f1a"
+}

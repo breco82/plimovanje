@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spremljanje gladine morja - Slovenija</title>
+    
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="Spremljajte dejansko in napovedano gladino morja v Koper - kapitanija. Vsebuje primerjalne grafe, temperature in podrobne vremenske pogoje.">
+    <meta name="keywords" content="plimovanje, gladina morja, arso, koper, plima, oseka, morje slovenija, temperatura morja">
+    <meta name="author" content="Matej">
+    
+    <!-- Google Fonts & Iconography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- CSS Stylesheet -->
+    <link rel="stylesheet" href="index.css">
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- Highcharts Stock Library -->
+    <script src="https://code.highcharts.com/stock/highstock.js"></script>
+    <script src="https://code.highcharts.com/modules/exporting.js"></script>
+    <script src="https://code.highcharts.com/modules/accessibility.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="brand">
+                <i class="fa-solid fa-water wave-icon"></i>
+                <div class="brand-text">
+                    <h1>Plimovanje Koper</h1>
+                    <p>Merilna postaja: Koper - kapitanija</p>
+                </div>
+            </div>
+            <div class="time-widget" style="display: flex; align-items: center; gap: 0.75rem;">
+                <button class="theme-toggle-btn" id="theme-toggle-btn" onclick="toggleTheme()" title="Svetel/Temni način" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 1.1rem; display: flex; align-items: center; justify-content: center; transition: color 0.2s; padding: 0.25rem;">
+                    <i class="fa-solid fa-sun" id="theme-icon-indicator"></i>
+                </button>
+                <div style="width: 1px; height: 16px; background: rgba(255, 255, 255, 0.1);" id="theme-divider"></div>
+                <i class="fa-regular fa-clock"></i>
+                <span id="current-time-display">Nalaganje...</span>
+            </div>
+        </header>
+
+        <!-- Warning Banner -->
+        <div id="warning-banner-container"></div>
+
+        <!-- Current Conditions Dashboard -->
+        <section class="dashboard-grid">
+            <!-- Card 1: Sea Level -->
+            <div class="dashboard-card" id="card-sea-level">
+                <div class="card-header">
+                    <span class="card-title">Gladina morja</span>
+                    <i class="fa-solid fa-arrows-up-down card-icon level-color"></i>
+                </div>
+                <div class="card-value-wrapper">
+                    <span class="card-value" id="current-level-val">--</span>
+                    <span class="card-unit">cm</span>
+                    <span id="level-trend-badge" class="trend-badge">--</span>
+                </div>
+                <div class="card-subtitle" style="display: flex; flex-direction: column; gap: 0.15rem;">
+                    <span id="relative-level-val">Razlika do srednje: --</span>
+                    <span id="level-time-val" style="font-size: 0.75rem; opacity: 0.8; margin-top: 0.1rem;">Meritev ARSO ob: --</span>
+                </div>
+            </div>
+
+            <!-- Card 2: Sea Temp -->
+            <div class="dashboard-card" id="card-sea-temp">
+                <div class="card-header">
+                    <span class="card-title">Temperatura morja</span>
+                    <i class="fa-solid fa-temperature-half card-icon temp-color"></i>
+                </div>
+                <div class="card-value-wrapper">
+                    <span class="card-value" id="current-temp-val">--</span>
+                    <span class="card-unit">°C</span>
+                </div>
+                <div class="card-subtitle">
+                    ARSO - kapitanija
+                </div>
+            </div>
+
+            <!-- Card 3: Next High Tide -->
+            <div class="dashboard-card" id="card-high-tide">
+                <div class="card-header">
+                    <span class="card-title">Naslednja plima (visoka)</span>
+                    <i class="fa-solid fa-chevron-up card-icon high-color"></i>
+                </div>
+                <div class="card-value-wrapper">
+                    <span class="card-value" id="next-high-time">--:--</span>
+                </div>
+                <div class="card-subtitle" id="next-high-height">
+                    Višina: -- cm
+                </div>
+            </div>
+
+            <!-- Card 4: Next Low Tide -->
+            <div class="dashboard-card" id="card-low-tide">
+                <div class="card-header">
+                    <span class="card-title">Naslednja oseka (nizka)</span>
+                    <i class="fa-solid fa-chevron-down card-icon low-color"></i>
+                </div>
+                <div class="card-value-wrapper">
+                    <span class="card-value" id="next-low-time">--:--</span>
+                </div>
+                <div class="card-subtitle" id="next-low-height">
+                    Višina: -- cm
+                </div>
+            </div>
+        </section>
+
+        <!-- Weather Sidebar & Main Graph Layout -->
+        <div class="main-content-layout">
+            <!-- Sidebar: Weather & Met -->
+            <aside class="sidebar-card">
+                <h2>Trenutne razmere</h2>
+                <div class="weather-summary">
+                    <div class="weather-icon-box" id="weather-icon-box">
+                        <i class="fa-solid fa-sun" id="weather-icon"></i>
+                    </div>
+                    <div class="weather-text">
+                        <span class="weather-temp" id="air-temp-val">--°C</span>
+                        <span class="weather-feels-like" id="air-temp-feels-val" style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.1rem; margin-bottom: 0.15rem;">Občutek: --</span>
+                        <span class="weather-desc" id="weather-desc-val">Nalaganje...</span>
+                    </div>
+                </div>
+                <hr class="divider">
+                <ul class="met-list">
+                    <li>
+                        <div class="met-item-label">
+                            <i class="fa-solid fa-gauge-high"></i> Zračni tlak
+                        </div>
+                        <span class="met-item-value" id="air-pressure-val">-- hPa</span>
+                    </li>
+                    <li>
+                        <div class="met-item-label">
+                            <i class="fa-solid fa-droplet"></i> Vlažnost zraka
+                        </div>
+                        <span class="met-item-value" id="humidity-val">-- %</span>
+                    </li>
+                    <li>
+                        <div class="met-item-label">
+                            <i class="fa-solid fa-wind"></i> Hitrost vetra
+                        </div>
+                        <span class="met-item-value" id="wind-speed-val">-- m/s</span>
+                    </li>
+                    <li>
+                        <div class="met-item-label">
+                            <i class="fa-solid fa-compass"></i> Smer vetra
+                        </div>
+                        <span class="met-item-value" id="wind-dir-val">--°</span>
+                    </li>
+                </ul>
+                <div class="sun-times">
+                    <div class="sun-time-box">
+                        <i class="fa-solid fa-sun-up sunrise-color"></i>
+                        <div>
+                            <span>Vzhod</span>
+                            <span id="sunrise-time">--:--</span>
+                        </div>
+                    </div>
+                    <div class="sun-time-box">
+                        <i class="fa-solid fa-sun-down sunset-color"></i>
+                        <div>
+                            <span>Zahod</span>
+                            <span id="sunset-time">--:--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PWA Install Banner -->
+                <div class="pwa-banner" id="pwa-install-banner" style="display: none; margin-top: 1rem;">
+                    <div class="pwa-text">
+                        <span class="pwa-title">Plimovanje Koper</span>
+                        <span class="pwa-desc">Dodaj na domač zaslon</span>
+                    </div>
+                    <button class="pwa-btn" id="pwa-install-btn">Namesti</button>
+                </div>
+
+                <!-- Moon Phase Widget -->
+                <div class="moon-widget">
+                    <div class="moon-header">
+                        <span>Lunina mena</span>
+                        <i class="fa-solid fa-moon"></i>
+                    </div>
+                    <div class="moon-content">
+                        <div class="moon-icon-box" id="moon-icon-box">
+                            <i class="fa-solid fa-moon" id="moon-icon"></i>
+                        </div>
+                        <div class="moon-details">
+                            <span class="moon-name" id="moon-phase-name">Nalaganje...</span>
+                            <span class="moon-coeff" id="moon-coeff-val">Koeficient: --</span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Main Interactive Chart Card -->
+            <main class="chart-container-card">
+                <div class="chart-header">
+                    <div class="chart-modes">
+                        <button class="mode-btn active" id="mode-level" onclick="setChartMode('level')">
+                            <i class="fa-solid fa-chart-area"></i> Gladina morja
+                        </button>
+                        <button class="mode-btn" id="mode-temp" onclick="setChartMode('temp')">
+                            <i class="fa-solid fa-chart-line"></i> Temperatura morja
+                        </button>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <div class="chart-periods">
+                            <button class="period-btn active" id="period-24h" onclick="setPeriod(24)">24 ur</button>
+                            <button class="period-btn" id="period-3d" onclick="setPeriod(72)">3 dni</button>
+                            <button class="period-btn" id="period-7d" onclick="setPeriod(168)">7 dni</button>
+                            <button class="period-btn" id="period-30d" onclick="setPeriod(720)">30 dni</button>
+                        </div>
+                        <button class="fullscreen-btn" id="fullscreen-btn" onclick="toggleFullscreen()" title="Celozaslonski način">
+                            <i class="fa-solid fa-expand"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Chart Area -->
+                <div class="chart-wrapper">
+                    <div id="sea-level-chart" style="width: 100%; height: 100%;"></div>
+                </div>
+                
+                <!-- Info Footer -->
+                <div class="chart-info-footer">
+                    <p><i class="fa-solid fa-circle-info"></i> Dejanske meritve posreduje <strong>ARSO</strong>, napovedi pa so izračunane z astronomskim modelom <strong>NIB MBP</strong>.</p>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Application Logic Scripts -->
+    <script src="Arcots.js"></script>
+    <script src="TideCalculator.js"></script>
+    <script src="index.js"></script>
+</body>
+</html>

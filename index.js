@@ -22,9 +22,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Initialize Theme
+    // Initialize Theme (Default is light unless saved as dark)
     const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'light') {
+    if (savedTheme === 'dark') {
+        document.body.classList.remove('light-theme');
+    } else {
         document.body.classList.add('light-theme');
     }
     updateThemeIcon();
@@ -498,8 +500,8 @@ function renderChart() {
     // Predictions window: extend predictions 365 days into the future to see forecasted tides
     const forecastEnd = new Date(endTime.getTime() + (365 * 24 * 60 * 60 * 1000));
     
-    // Generate astronomical predictions for the chart period (using 30-minute interval for smooth scrolling)
-    const predictions = TideCalculator.getPredictionsForPeriod(startTime, forecastEnd, 30);
+    // Generate astronomical predictions for the chart period (using 10-minute interval to align with ARSO measurements)
+    const predictions = TideCalculator.getPredictionsForPeriod(startTime, forecastEnd, 10);
     
     let series = [];
     let yAxisTitle = '';
@@ -517,9 +519,9 @@ function renderChart() {
                 name: 'Izmerjena gladina (ARSO)',
                 data: actualSeriesData,
                 type: 'spline',
-                color: '#0ea5e9',
+                color: '#f97316', // High-contrast orange
                 shadow: {
-                    color: 'rgba(14, 165, 233, 0.4)',
+                    color: 'rgba(249, 115, 22, 0.35)',
                     width: 4,
                     offsetX: 0,
                     offsetY: 2
@@ -530,7 +532,7 @@ function renderChart() {
                 name: 'Napovedano plimovanje (NIB MBP)',
                 data: predictedSeriesData,
                 type: 'spline',
-                color: '#10b981',
+                color: '#10b981', // Distinct green
                 dashStyle: 'ShortDash',
                 opacity: 0.85,
                 marker: { enabled: false }
@@ -590,7 +592,7 @@ function renderChart() {
             useUTC: false
         },
         title: {
-            text: chartTitle,
+            text: (window.innerHeight < 500) ? null : chartTitle, // Hide title in landscape mode to save space
             style: { color: titleColor, fontWeight: '600', fontSize: '15px' }
         },
         credits: { enabled: false },
@@ -648,7 +650,7 @@ function renderChart() {
         tooltip: {
             shared: true,
             crosshairs: true,
-            followTouchMove: true,
+            followTouchMove: false, // Allows native vertical scrolling on mobile
             formatter: function () {
                 const days = ['Ned', 'Pon', 'Tor', 'Sre', 'Čet', 'Pet', 'Sob'];
                 const dateObj = new Date(this.x);
@@ -658,9 +660,10 @@ function renderChart() {
                 
                 this.points.forEach(point => {
                     if (chartMode === 'level') {
-                        const relVal = Math.round(point.y - MEAN_SEA_LEVEL_OFFSET);
+                        const relVal = Math.round(point.y);
                         const sign = relVal >= 0 ? '+' : '';
-                        s += `<span style="color:${point.color}">●</span> <b>${sign}${relVal} cm</b><br/>`;
+                        const prefix = point.series.name.includes('Izmerjena') ? 'DEJ' : 'NAP';
+                        s += `<span style="color:${point.color}">●</span> ${prefix}: <b>${sign}${relVal} cm</b><br/>`;
                     } else {
                         const val = point.y.toFixed(1);
                         s += `<span style="color:${point.color}">●</span> <b>${val} °C</b><br/>`;

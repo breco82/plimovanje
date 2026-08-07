@@ -708,19 +708,20 @@ function toggleFullscreen() {
     if (!chartCard) return;
     
     const isFullscreen = chartCard.classList.toggle('fullscreen-active');
+    document.body.classList.toggle('fullscreen-open', isFullscreen); // Add/remove body layout override class
     
     if (isFullscreen) {
         fsBtn.innerHTML = '<i class="fa-solid fa-compress"></i>';
         fsBtn.title = "Izhod iz celozaslonskega načina";
-        document.body.style.overflow = 'hidden';
     } else {
         fsBtn.innerHTML = '<i class="fa-solid fa-expand"></i>';
         fsBtn.title = "Celozaslonski način";
-        document.body.style.overflow = '';
     }
     
     if (currentChart) {
-        currentChart.reflow();
+        setTimeout(() => {
+            currentChart.reflow();
+        }, 150); // Small timeout to allow CSS hide animations/transitions to finish before reflowing the chart size
     }
 }
 

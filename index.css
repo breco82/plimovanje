@@ -523,18 +523,41 @@ body {
     }
 }
 
+/* Fullscreen mode layout overrides on body */
+body.fullscreen-open {
+    overflow-y: auto !important;
+}
+body.fullscreen-open .app-header,
+body.fullscreen-open .sidebar-layout,
+body.fullscreen-open .chart-info-footer {
+    display: none !important;
+}
+body.fullscreen-open .app-container {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    gap: 0 !important;
+}
+body.fullscreen-open .main-content-layout {
+    grid-template-columns: 1fr !important;
+    gap: 0 !important;
+    height: 100% !important;
+}
+
+/* Fullscreen container card style - absolute position to cover page and allow body scroll */
 .chart-container-card.fullscreen-active {
-    position: fixed;
+    position: absolute;
     top: 0;
     left: 0;
     width: 100vw !important;
-    height: 101vh !important; /* 101vh forces a tiny vertical scroll overflow so Safari can detect scroll gestures and hide the address bar */
+    height: 520px !important; /* Comfortable height to guarantee legend is never cut off */
+    min-height: 101vh !important; /* Tiny overflow to force Safari URL hiding */
     z-index: 9999;
     border-radius: 0;
     border: none;
-    padding: 1rem;
+    padding: 1.5rem;
     background: var(--bg-color);
-    overflow-y: auto; /* Enable scroll behavior so Safari handles showing/hiding URL bar naturally */
+    box-shadow: none;
 }
 
 /* Hide controls completely in fullscreen mode - uses the settings selected in normal mode */
@@ -544,8 +567,10 @@ body {
 
 /* Float the exit button in the top-right corner during fullscreen */
 .chart-container-card.fullscreen-active .fullscreen-btn {
+    position: absolute;
     top: 1rem;
     right: 1rem;
+    z-index: 10000;
 }
 
 .chart-wrapper {
@@ -598,14 +623,14 @@ body {
         display: none !important;
     }
     
-    /* Clean, immersive 101vh fullscreen chart in landscape mode */
+    /* Clean, immersive fullscreen chart in landscape mode */
     .chart-container-card.fullscreen-active {
         padding: 0.4rem;
-        height: 101vh !important; /* Forces scroll overflow to hide Safari UI */
+        height: 480px !important; /* Set to 480px in landscape so it has plenty of space and triggers page scroll on 320px screens */
+        min-height: 101vh !important; /* Forces scroll overflow to hide Safari UI */
         display: flex;
         flex-direction: column !important;
         gap: 0;
-        overflow-y: auto;
     }
     .chart-container-card.fullscreen-active .fullscreen-btn {
         top: 0.5rem;

@@ -578,6 +578,9 @@ function renderChart() {
     
     // Render Highcharts Stock
     currentChart = Highcharts.stockChart('sea-level-chart', {
+        exporting: {
+            enabled: false // Disable the exporting burger menu to prevent overlap with fullscreen button
+        },
         chart: {
             style: { fontFamily: 'Inter' },
             spacingBottom: 5,
@@ -618,8 +621,9 @@ function renderChart() {
                 label: {
                     text: 'Sedaj',
                     align: 'right',
-                    style: { color: '#ef4444', fontWeight: 'bold' },
-                    y: 15
+                    x: -8, // Shift to the left of the line so it doesn't clip on the right edge
+                    y: 30, // Move lower to make it fully visible
+                    style: { color: '#ef4444', fontWeight: 'bold' }
                 },
                 zIndex: 5
             }],
@@ -673,7 +677,13 @@ function renderChart() {
         },
         legend: {
             enabled: true,
-            itemStyle: { color: labelColor },
+            align: 'center',
+            verticalAlign: 'bottom',
+            layout: 'horizontal',
+            margin: 5,
+            padding: 2,
+            itemDistance: 10,
+            itemStyle: { color: labelColor, fontSize: '10px' },
             itemHoverStyle: { color: titleColor }
         },
         plotOptions: {

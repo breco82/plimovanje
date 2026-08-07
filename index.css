@@ -528,13 +528,13 @@ body {
     top: 0;
     left: 0;
     width: 100vw !important;
-    height: 100vh !important;
+    height: 101vh !important; /* 101vh forces a tiny vertical scroll overflow so Safari can detect scroll gestures and hide the address bar */
     z-index: 9999;
     border-radius: 0;
     border: none;
     padding: 1rem;
     background: var(--bg-color);
-    touch-action: none !important; /* Prevent page dragging / elastic scrolling / Safari address bar popups */
+    overflow-y: auto; /* Enable scroll behavior so Safari handles showing/hiding URL bar naturally */
 }
 
 /* Hide controls completely in fullscreen mode - uses the settings selected in normal mode */
@@ -575,8 +575,8 @@ body {
         gap: 0.75rem;
     }
     .chart-container-card {
-        height: 460px; /* Increased to 460px so chart has plenty of vertical space in normal scroll mode */
-        min-height: 380px;
+        height: 500px; /* Increased to 500px so chart has plenty of vertical space in normal scroll mode */
+        min-height: 400px;
         padding: 0.75rem;
         gap: 0.75rem;
     }
@@ -598,13 +598,14 @@ body {
         display: none !important;
     }
     
-    /* Clean, immersive 100% fullscreen chart in landscape mode */
+    /* Clean, immersive 101vh fullscreen chart in landscape mode */
     .chart-container-card.fullscreen-active {
         padding: 0.4rem;
-        height: 100vh !important;
+        height: 101vh !important; /* Forces scroll overflow to hide Safari UI */
         display: flex;
         flex-direction: column !important;
         gap: 0;
+        overflow-y: auto;
     }
     .chart-container-card.fullscreen-active .fullscreen-btn {
         top: 0.5rem;
@@ -617,7 +618,6 @@ body {
         height: 100%;
         width: 100%;
         min-width: 0;
-        touch-action: pan-x !important; /* Block all page-level swipes to lock Safari viewport */
     }
 }
 

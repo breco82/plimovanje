@@ -528,7 +528,8 @@ body.fullscreen-open {
     overflow-y: auto !important;
 }
 body.fullscreen-open .app-header,
-body.fullscreen-open .sidebar-layout,
+body.fullscreen-open .dashboard-grid,
+body.fullscreen-open .sidebar-card,
 body.fullscreen-open .chart-info-footer {
     display: none !important;
 }

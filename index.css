@@ -205,46 +205,33 @@ body {
     font-family: var(--font-heading);
     font-size: 1.2rem;
     font-weight: 600;
-    margin-bottom: 1.25rem;
+    margin-bottom: 0.5rem;
+    text-align: center;
     letter-spacing: -0.2px;
 }
 
-.weather-summary {
-    display: flex;
-    align-items: center;
-    gap: 1.25rem;
-    margin-bottom: 1.25rem;
+.weather-desc-text {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    text-align: center;
+    margin-top: -0.25rem;
+    margin-bottom: 0.85rem;
+    text-transform: capitalize;
 }
 
 .weather-icon-box {
-    width: 60px;
-    height: 60px;
+    width: 36px;
+    height: 36px;
     background: rgba(245, 158, 11, 0.1);
     border: 1px solid rgba(245, 158, 11, 0.25);
-    border-radius: 12px;
+    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 2rem;
+    font-size: 1.2rem;
     color: var(--accent-amber);
     box-shadow: inset 0 0 10px rgba(245, 158, 11, 0.05);
-}
-
-.weather-text {
-    display: flex;
-    flex-direction: column;
-}
-
-.weather-temp {
-    font-family: var(--font-heading);
-    font-size: 1.7rem;
-    font-weight: 700;
-}
-
-.weather-desc {
-    font-size: 0.9rem;
-    color: var(--text-secondary);
-    text-transform: capitalize;
+    transition: all var(--transition-speed);
 }
 
 .divider {
@@ -786,6 +773,11 @@ body.light-theme .forecast-day-card {
     color: #e2e8f0;
 }
 
+#moon-icon {
+    display: inline-block;
+    transition: transform 0.3s ease;
+}
+
 .moon-details {
     display: flex;
     flex-direction: column;
@@ -908,6 +900,11 @@ body.light-theme .moon-icon-box {
     background: rgba(0, 0, 0, 0.02);
     border-color: rgba(0, 0, 0, 0.06);
     color: #475569;
+}
+
+body.light-theme .weather-icon-box {
+    background: rgba(0, 0, 0, 0.02);
+    border-color: rgba(0, 0, 0, 0.06);
 }
 
 body.light-theme .time-widget {

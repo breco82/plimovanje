@@ -17,7 +17,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <!-- CSS Stylesheet -->
-    <link rel="stylesheet" href="index.css">
+    <link rel="stylesheet" href="index.css?v=3">
     <link rel="manifest" href="manifest.json">
     
     <!-- Highcharts Stock Library -->
@@ -116,17 +116,35 @@
         <div class="main-content-layout">
             <!-- Sidebar: Weather & Met -->
             <aside class="sidebar-card">
-                <h2>Trenutne razmere</h2>
-                <div class="weather-summary">
-                    <div class="weather-icon-box" id="weather-icon-box">
-                        <i class="fa-solid fa-sun" id="weather-icon"></i>
+                <h2>Vremenske razmere</h2>
+                <div class="weather-desc-text" id="weather-desc-val">Nalaganje...</div>
+                
+                <div class="forecast-container">
+                    <!-- Danes -->
+                    <div class="forecast-day-card today-card">
+                        <span class="forecast-day-name">Danes</span>
+                        <div class="weather-icon-box" id="weather-icon-box">
+                            <i class="fa-solid fa-sun" id="weather-icon"></i>
+                        </div>
+                        <span class="forecast-temp" id="air-temp-val">--°C</span>
+                        <span class="forecast-wind" id="air-temp-feels-val">Občutek: --</span>
                     </div>
-                    <div class="weather-text">
-                        <span class="weather-temp" id="air-temp-val">--°C</span>
-                        <span class="weather-feels-like" id="air-temp-feels-val" style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.1rem; margin-bottom: 0.15rem;">Občutek: --</span>
-                        <span class="weather-desc" id="weather-desc-val">Nalaganje...</span>
+                    <!-- Jutri -->
+                    <div class="forecast-day-card">
+                        <span class="forecast-day-name">Jutri</span>
+                        <i class="fa-solid fa-sun forecast-icon" id="forecast-day-1-icon" style="color: #f59e0b;"></i>
+                        <span class="forecast-temp" id="forecast-day-1-temp">-- / -- °C</span>
+                        <span class="forecast-wind" id="forecast-day-1-wind">-- km/h</span>
+                    </div>
+                    <!-- Pojutrišnjem -->
+                    <div class="forecast-day-card">
+                        <span class="forecast-day-name">Pojutr.</span>
+                        <i class="fa-solid fa-cloud-sun forecast-icon" id="forecast-day-2-icon" style="color: #94a3b8;"></i>
+                        <span class="forecast-temp" id="forecast-day-2-temp">-- / -- °C</span>
+                        <span class="forecast-wind" id="forecast-day-2-wind">-- km/h</span>
                     </div>
                 </div>
+                
                 <hr class="divider">
                 <ul class="met-list">
                     <li>
@@ -178,25 +196,6 @@
                         <span class="pwa-desc">Dodaj na domač zaslon</span>
                     </div>
                     <button class="pwa-btn" id="pwa-install-btn">Namesti</button>
-                </div>
-                <!-- Weather Forecast Section -->
-                <hr class="divider">
-                <div class="weather-forecast-section">
-                    <h3>Napoved za naslednja dneva</h3>
-                    <div class="forecast-container">
-                        <div class="forecast-day-card">
-                            <span class="forecast-day-name">Jutri</span>
-                            <i class="fa-solid fa-sun forecast-icon" id="forecast-day-1-icon" style="color: #f59e0b;"></i>
-                            <span class="forecast-temp" id="forecast-day-1-temp">-- / -- °C</span>
-                            <span class="forecast-wind" id="forecast-day-1-wind">-- km/h</span>
-                        </div>
-                        <div class="forecast-day-card">
-                            <span class="forecast-day-name">Pojutrišnjem</span>
-                            <i class="fa-solid fa-cloud-sun forecast-icon" id="forecast-day-2-icon" style="color: #94a3b8;"></i>
-                            <span class="forecast-temp" id="forecast-day-2-temp">-- / -- °C</span>
-                            <span class="forecast-wind" id="forecast-day-2-wind">-- km/h</span>
-                        </div>
-                    </div>
                 </div>
 
                 <!-- Moon Phase Widget -->
@@ -255,8 +254,8 @@
     </div>
 
     <!-- Application Logic Scripts -->
-    <script src="Arcots.js"></script>
-    <script src="TideCalculator.js"></script>
-    <script src="index.js"></script>
+    <script src="Arcots.js?v=3"></script>
+    <script src="TideCalculator.js?v=3"></script>
+    <script src="index.js?v=3"></script>
 </body>
 </html>

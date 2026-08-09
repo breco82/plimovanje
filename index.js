@@ -600,9 +600,9 @@ async function loadWeather() {
             if (feelsLikeEl && !isNaN(tempVal) && !isNaN(rh) && !isNaN(ws)) {
                 const e = (rh / 100.0) * 6.105 * Math.exp((17.27 * tempVal) / (237.7 + tempVal));
                 const apparentTemp = tempVal + 0.33 * e - 0.7 * ws - 4.0;
-                feelsLikeEl.textContent = `Občutek: ${apparentTemp.toFixed(1)}°C`;
+                feelsLikeEl.textContent = `Obč. ${Math.round(apparentTemp)}°C`;
             } else if (feelsLikeEl) {
-                feelsLikeEl.textContent = `Občutek: --`;
+                feelsLikeEl.textContent = `Obč. --`;
             }
             
             // Weather Condition

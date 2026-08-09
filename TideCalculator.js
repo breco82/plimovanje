@@ -13,7 +13,7 @@ class TideCalculator {
         
         // Harmonic tidal sum
         let X = 0.0;
-        for (let k = 0; k < 7; k++) {
+        for (let k = 0; k < Arcots.MA.length; k++) {
             X += arcots.FH[k] * Math.cos(Arcots.S[k] * diffHours + arcots.VUG[k]);
         }
         return X;

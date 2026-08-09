@@ -1,25 +1,25 @@
 class Arcots {
     constructor(year) {
-        this.F = [0, 0, 0, 0, 0, 0, 0];
-        this.V0U = [0, 0, 0, 0, 0, 0, 0];
-        this.A = [0, 0, 0, 0, 0, 0];
-        this.B = [0, 0, 0, 0, 0, 0, 0];
+        this.F = new Array(10).fill(0);
+        this.V0U = new Array(10).fill(0);
+        this.A = new Array(6).fill(0);
+        this.B = new Array(7).fill(0);
         this.C = new Array(16).fill(0);
-        this.DX = [0, 0, 0, 0, 0];
-        this.DL = [0, 0, 0];
-        this.DV = [0, 0, 0, 0, 0, 0, 0];
+        this.DX = new Array(5).fill(0);
+        this.DL = new Array(3).fill(0);
+        this.DV = new Array(10).fill(0);
         
-        this.FH = [0, 0, 0, 0, 0, 0, 0];
-        this.FHS = [0, 0, 0, 0, 0, 0, 0];
-        this.FHSS = [0, 0, 0, 0, 0, 0, 0];
-        this.VUG = [0, 0, 0, 0, 0, 0, 0];
+        this.FH = new Array(10).fill(0);
+        this.FHS = new Array(10).fill(0);
+        this.FHSS = new Array(10).fill(0);
+        this.VUG = new Array(10).fill(0);
         
         this.Y = year;
         const YH = this.Y + 0.5;
         this.NODFAC(YH);
         this.VZEROU(this.Y, YH, 1);
         
-        for (let L = 0; L < 7; L++) {
+        for (let L = 0; L < 10; L++) {
             this.FH[L] = this.F[L] * Arcots.H[L];
             this.FHS[L] = this.FH[L] * Arcots.S[L];
             this.FHSS[L] = this.FHS[L] * Arcots.S[L];
@@ -42,6 +42,11 @@ class Arcots {
         this.F[4] = Math.sqrt(this.B[1] * this.C[2] * this.C[2] + this.B[4] * this.C[2] * Math.cos(this.DX[1]) + this.B[6]);
         this.F[5] = this.B[3] * this.C[0] * this.C[3];
         this.F[6] = 1.0;
+        
+        // Compound tides node factors
+        this.F[7] = this.F[0] * this.F[0];                  // M4 = M2^2
+        this.F[8] = this.F[0];                              // MS4 = M2 * S2 = M2 (since F[S2] = 1.0)
+        this.F[9] = this.F[0] * this.F[0] * this.F[0];      // M6 = M2^3
     }
 
     INUXI(Y, IRD) {
@@ -160,6 +165,11 @@ class Arcots {
             this.V0U[i] = this.DV[i] % AF;
         }
         this.V0U[1] = 0.0;
+        
+        // Compound tides Greenwich phase values
+        this.V0U[7] = (2.0 * this.V0U[0]) % AF;             // M4 = 2 * M2
+        this.V0U[8] = (this.V0U[0] + this.V0U[1]) % AF;     // MS4 = M2 + S2
+        this.V0U[9] = (3.0 * this.V0U[0]) % AF;             // M6 = 3 * M2
     }
 
     HSPLON(Y, IRD) {
@@ -184,10 +194,13 @@ class Arcots {
     }
 }
 
-// Static harmonic constants for Koper tides (M2, S2, N2, K2, K1, O1, P1)
-Arcots.MA = ["M2", "S2", "N2", "K2", "K1", "O1", "P1"];
-Arcots.H = [25.1, 15.8, 4.6, 4.4, 18.2, 5.0, 5.9];
-Arcots.G = [4.842, 4.955, 4.815, 4.752, 1.215, 1.079, 1.133];
-Arcots.S = [0.50586805, 0.52359878, 0.49636692, 0.52503234, 0.26251617, 0.24335188, 0.26108261];
+// Static harmonic constants for Koper tides (M2, S2, N2, K2, K1, O1, P1, M4, MS4, M6)
+Arcots.MA = ["M2", "S2", "N2", "K2", "K1", "O1", "P1", "M4", "MS4", "M6"];
+Arcots.H = [25.1, 15.8, 4.6, 4.4, 18.2, 5.0, 5.9, 1.2, 0.8, 0.4];
+Arcots.G = [4.842, 4.955, 4.815, 4.752, 1.215, 1.079, 1.133, 5.06, 5.41, 3.14];
+Arcots.S = [
+    0.50586805, 0.52359878, 0.49636692, 0.52503234, 0.26251617, 0.24335188, 0.26108261, // Primary diurnal and semi-diurnal
+    1.01173610, 1.02946683, 1.51760415 // Shallow water over-tides (M4 = 2*M2, MS4 = M2+S2, M6 = 3*M2)
+];
 
 window.Arcots = Arcots;

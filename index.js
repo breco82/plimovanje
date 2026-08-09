@@ -393,15 +393,17 @@ async function loadMeteoData() {
                             else if (wCode >= 85 && wCode <= 86) iconClass = 'fa-snowflake';
                             else if (wCode >= 95 && wCode <= 99) iconClass = 'fa-cloud-bolt';
                             
-                            let iconColor = '#f59e0b';
-                            if (iconClass === 'fa-cloud' || iconClass === 'fa-smog' || iconClass === 'fa-cloud-sun') {
-                                iconColor = '#94a3b8';
+                            let iconColor = '#f59e0b'; // Amber/yellow for sun
+                            if (iconClass === 'fa-cloud' || iconClass === 'fa-smog') {
+                                iconColor = '#64748b'; // Slate gray for pure cloud
+                            } else if (iconClass === 'fa-cloud-sun') {
+                                iconColor = '#f59e0b'; // Keep sun-cloud bright and warm (yellowish)
                             } else if (iconClass.includes('rain') || iconClass.includes('showers')) {
-                                iconColor = '#0ea5e9';
+                                iconColor = '#0ea5e9'; // Blue for rain
                             } else if (iconClass === 'fa-snowflake') {
-                                iconColor = '#38bdf8';
+                                iconColor = '#38bdf8'; // Sky blue for snow
                             } else if (iconClass === 'fa-cloud-bolt') {
-                                iconColor = '#a855f7';
+                                iconColor = '#eab308'; // Bright yellow/gold for lightning
                             }
                             
                             const iconEl = document.getElementById(`${cardPrefix}-icon`);
@@ -848,12 +850,26 @@ function renderChart() {
         xAxis: {
             type: 'datetime',
             gridLineWidth: 1,
-            dateTimeLabelFormats: {
-                hour: '%H:%M',
-                day: '%a %e. %m.',
-                week: '%a %e. %m.'
+            labels: {
+                style: { color: labelColor },
+                formatter: function () {
+                    const date = new Date(this.value);
+                    const hours = date.getHours();
+                    const minutes = date.getMinutes();
+                    
+                    // If it is midnight, display day name and date (e.g. Pon 10. 8.)
+                    if (hours === 0 && minutes === 0) {
+                        const days = ['Ned', 'Pon', 'Tor', 'Sre', 'Čet', 'Pet', 'Sob'];
+                        const dayName = days[date.getDay()];
+                        const day = date.getDate();
+                        const month = date.getMonth() + 1;
+                        return `<b>${dayName} ${day}. ${month}.</b>`;
+                    }
+                    
+                    // Otherwise, display time
+                    return Highcharts.dateFormat('%H:%M', this.value);
+                }
             },
-            labels: { style: { color: labelColor } },
             min: minTime,
             max: maxTime,
             plotLines: [{

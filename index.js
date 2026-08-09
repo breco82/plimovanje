@@ -1008,29 +1008,29 @@ function updateMoonPhase() {
         phaseName = "Mlaj";
         iconClass = "fa-regular fa-circle";
     } else if (ageDays < 6.38) {
-        phaseName = "Rastoči srp";
+        phaseName = "Rastoča luna";
         iconClass = "fa-solid fa-moon";
+        iconTransform = "scaleX(-1)"; // Mirror to point like '('
     } else if (ageDays < 8.38) {
         phaseName = "Prvi krajec";
         iconClass = "fa-solid fa-circle-half-stroke";
+        iconTransform = "rotate(180deg)"; // Make it right-side filled
     } else if (ageDays < 13.76) {
         phaseName = "Rastoča luna";
         iconClass = "fa-solid fa-circle-half-stroke";
+        iconTransform = "rotate(180deg)"; // Make it right-side filled
     } else if (ageDays < 15.76) {
         phaseName = "Ščip";
         iconClass = "fa-solid fa-circle";
     } else if (ageDays < 21.15) {
         phaseName = "Padajoča luna";
-        iconClass = "fa-solid fa-circle-half-stroke";
-        iconTransform = "rotate(180deg)";
+        iconClass = "fa-solid fa-circle-half-stroke"; // Left-side filled by default
     } else if (ageDays < 23.15) {
         phaseName = "Zadnji krajec";
-        iconClass = "fa-solid fa-circle-half-stroke";
-        iconTransform = "rotate(180deg)";
+        iconClass = "fa-solid fa-circle-half-stroke"; // Left-side filled by default
     } else {
-        phaseName = "Padajoči srp";
-        iconClass = "fa-solid fa-moon";
-        iconTransform = "scaleX(-1)";
+        phaseName = "Padajoča luna";
+        iconClass = "fa-solid fa-moon"; // Points like ')' by default
     }
     
     // Calculate Tide Coefficient (0 = Neap, 100 = Spring)
@@ -1058,6 +1058,7 @@ function updateMoonPhase() {
     const moonIcon = document.getElementById('moon-icon');
     if (moonIcon) {
         moonIcon.className = iconClass;
+        moonIcon.style.display = "inline-block"; // Force display inline-block to allow transforms
         moonIcon.style.transform = iconTransform;
         if (phaseName === "Ščip") {
             moonIcon.style.textShadow = "0 0 10px #fff";

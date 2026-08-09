@@ -62,9 +62,9 @@
                     <span class="card-unit">cm</span>
                     <span id="level-trend-badge" class="trend-badge">--</span>
                 </div>
-                <div class="card-subtitle" style="display: flex; flex-direction: column; gap: 0.15rem;">
-                    <span id="relative-level-val">Razlika do srednje: --</span>
-                    <span id="level-time-val" style="font-size: 0.75rem; opacity: 0.8; margin-top: 0.1rem;">Meritev ARSO ob: --</span>
+                <div class="card-subtitle" style="display: flex; flex-direction: column; gap: 0.2rem;">
+                    <span id="level-time-val" style="font-size: 0.95rem; font-weight: 500; color: var(--text-primary);">Meritev ARSO ob: --</span>
+                    <span id="relative-level-val" style="font-size: 0.8rem; color: var(--text-secondary);">Absolutna gladina: --</span>
                 </div>
             </div>
 
@@ -178,6 +178,25 @@
                         <span class="pwa-desc">Dodaj na domač zaslon</span>
                     </div>
                     <button class="pwa-btn" id="pwa-install-btn">Namesti</button>
+                </div>
+                <!-- Weather Forecast Section -->
+                <hr class="divider">
+                <div class="weather-forecast-section">
+                    <h3>Napoved za naslednja dneva</h3>
+                    <div class="forecast-container">
+                        <div class="forecast-day-card">
+                            <span class="forecast-day-name">Jutri</span>
+                            <i class="fa-solid fa-sun forecast-icon" id="forecast-day-1-icon" style="color: #f59e0b;"></i>
+                            <span class="forecast-temp" id="forecast-day-1-temp">-- / -- °C</span>
+                            <span class="forecast-wind" id="forecast-day-1-wind">-- km/h</span>
+                        </div>
+                        <div class="forecast-day-card">
+                            <span class="forecast-day-name">Pojutrišnjem</span>
+                            <i class="fa-solid fa-cloud-sun forecast-icon" id="forecast-day-2-icon" style="color: #94a3b8;"></i>
+                            <span class="forecast-temp" id="forecast-day-2-temp">-- / -- °C</span>
+                            <span class="forecast-wind" id="forecast-day-2-wind">-- km/h</span>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Moon Phase Widget -->

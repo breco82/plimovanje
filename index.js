@@ -19,6 +19,12 @@ document.addEventListener('DOMContentLoaded', () => {
         Highcharts.setOptions({
             time: {
                 useUTC: false
+            },
+            lang: {
+                weekdays: ['Nedelja', 'Ponedeljek', 'Torek', 'Sreda', 'Četrtek', 'Petek', 'Sobota'],
+                shortWeekdays: ['Ned', 'Pon', 'Tor', 'Sre', 'Čet', 'Pet', 'Sob'],
+                months: ['Januar', 'Februar', 'Marec', 'April', 'Maj', 'Junij', 'Julij', 'Avgust', 'September', 'Oktober', 'November', 'December'],
+                shortMonths: ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Avg', 'Sep', 'Okt', 'Nov', 'Dec']
             }
         });
     }
@@ -270,10 +276,43 @@ async function loadMergedWaterData() {
         level: item.level
     }));
     
+    // Sort historyData chronologically
+    historyData.sort((a, b) => a.time - b.time);
+    
+    // Interpolate hourly history data into 10-minute steps so it matches 10-minute predictions exactly
+    const interpolatedHistory = [];
+    for (let i = 0; i < historyData.length; i++) {
+        const current = historyData[i];
+        interpolatedHistory.push(current);
+        
+        if (i < historyData.length - 1) {
+            const next = historyData[i+1];
+            const timeDiffMs = next.time.getTime() - current.time.getTime();
+            
+            // If gap is approximately 1 hour (between 45 and 75 minutes), fill in 10-minute intervals
+            if (timeDiffMs > 15 * 60 * 1000 && timeDiffMs < 90 * 60 * 1000) {
+                const steps = Math.round(timeDiffMs / (10 * 60 * 1000));
+                for (let step = 1; step < steps; step++) {
+                    const t = current.time.getTime() + step * 10 * 60 * 1000;
+                    const w = step / steps;
+                    
+                    const interpolatedTemp = current.temp + w * (next.temp - current.temp);
+                    const interpolatedLevel = current.level + w * (next.level - current.level);
+                    
+                    interpolatedHistory.push({
+                        time: new Date(t),
+                        temp: parseFloat(interpolatedTemp.toFixed(1)),
+                        level: parseFloat(interpolatedLevel.toFixed(1))
+                    });
+                }
+            }
+        }
+    }
+    
     // Merge data: Day data (24h) overwrites history data (30d) for same timestamp
     const mergedMap = new Map();
     
-    historyData.forEach(item => {
+    interpolatedHistory.forEach(item => {
         mergedMap.set(item.time.getTime(), item);
     });
     
@@ -284,31 +323,112 @@ async function loadMergedWaterData() {
     return Array.from(mergedMap.values()).sort((a, b) => a.time - b.time);
 }
 
+// Convert degrees to Slovenian wind direction abbreviation
+function getWindDirectionSlo(deg) {
+    if (deg === null || deg === undefined || isNaN(deg)) return "--";
+    const directions = ["S", "SV", "V", "JV", "J", "JZ", "Z", "SZ"];
+    // Round to closest 45 degree sector (0-360)
+    const idx = Math.round(deg / 45) % 8;
+    return directions[idx];
+}
+
 async function loadMeteoData() {
     try {
-        // Fetch 31 days of history and 3 days of forecast from Open-Meteo for Koper
-        const url = 'https://api.open-meteo.com/v1/forecast?latitude=45.5469&longitude=13.7294&hourly=pressure_msl,wind_speed_10m,wind_direction_10m&past_days=31&forecast_days=3&timezone=auto';
+        // Fetch 31 days of history and 3 days of forecast from Open-Meteo for Koper (idx 0) and Dubrovnik (idx 1), including Koper's daily forecast
+        const url = 'https://api.open-meteo.com/v1/forecast?latitude=45.5469,42.6507&longitude=13.7294,18.0944&hourly=pressure_msl&daily=weather_code,temperature_2m_max,temperature_2m_min,wind_speed_10m_max,wind_direction_10m_dominant&past_days=31&forecast_days=3&timezone=auto';
         const response = await fetch(url);
         if (!response.ok) throw new Error("Meteo API response not ok");
         const json = await response.json();
         
-        if (json && json.hourly && json.hourly.time) {
+        if (json && json[0] && json[0].hourly && json[1] && json[1].hourly) {
             meteoForecastMap.clear();
-            const times = json.hourly.time;
-            const pressures = json.hourly.pressure_msl;
-            const windSpeeds = json.hourly.wind_speed_10m;
-            const windDirections = json.hourly.wind_direction_10m;
+            const times = json[0].hourly.time;
+            const pressuresKoper = json[0].hourly.pressure_msl;
+            const pressuresDubrovnik = json[1].hourly.pressure_msl;
             
             for (let i = 0; i < times.length; i++) {
                 const date = new Date(times[i]);
                 const timeMs = date.getTime();
                 meteoForecastMap.set(timeMs, {
-                    pressure: pressures[i],
-                    windSpeed: windSpeeds[i], // km/h
-                    windDir: windDirections[i] // degrees
+                    pressureKoper: pressuresKoper[i],
+                    pressureDubrovnik: pressuresDubrovnik[i]
                 });
             }
-            console.log(`Loaded ${meteoForecastMap.size} Open-Meteo weather points.`);
+            console.log(`Loaded ${meteoForecastMap.size} Open-Meteo dual-pressure weather points.`);
+            
+            // Parse and update 2-day forecast in Koper sidebar
+            try {
+                if (json[0].daily) {
+                    const daily = json[0].daily;
+                    const dTimes = daily.time;
+                    
+                    const getIndexForDate = (dateOffset) => {
+                        const targetDate = new Date();
+                        targetDate.setDate(targetDate.getDate() + dateOffset);
+                        const targetStr = targetDate.getFullYear() + '-' + 
+                                          String(targetDate.getMonth() + 1).padStart(2, '0') + '-' + 
+                                          String(targetDate.getDate()).padStart(2, '0');
+                        return dTimes.indexOf(targetStr);
+                    };
+                    
+                    const idxTomorrow = getIndexForDate(1);
+                    const idxDayAfter = getIndexForDate(2);
+                    
+                    const updateForecastCard = (cardPrefix, idx) => {
+                        if (idx !== -1) {
+                            const wCode = daily.weather_code[idx];
+                            const tempMin = daily.temperature_2m_min[idx];
+                            const tempMax = daily.temperature_2m_max[idx];
+                            const windSpeed = daily.wind_speed_10m_max[idx];
+                            const windDir = daily.wind_direction_10m_dominant[idx];
+                            
+                            let iconClass = 'fa-sun';
+                            if (wCode === 0) iconClass = 'fa-sun';
+                            else if (wCode >= 1 && wCode <= 3) iconClass = 'fa-cloud-sun';
+                            else if (wCode === 45 || wCode === 48) iconClass = 'fa-smog';
+                            else if (wCode >= 51 && wCode <= 57) iconClass = 'fa-cloud-rain';
+                            else if (wCode >= 61 && wCode <= 67) iconClass = 'fa-cloud-showers-heavy';
+                            else if (wCode >= 71 && wCode <= 77) iconClass = 'fa-snowflake';
+                            else if (wCode >= 80 && wCode <= 82) iconClass = 'fa-cloud-rain';
+                            else if (wCode >= 85 && wCode <= 86) iconClass = 'fa-snowflake';
+                            else if (wCode >= 95 && wCode <= 99) iconClass = 'fa-cloud-bolt';
+                            
+                            let iconColor = '#f59e0b';
+                            if (iconClass === 'fa-cloud' || iconClass === 'fa-smog' || iconClass === 'fa-cloud-sun') {
+                                iconColor = '#94a3b8';
+                            } else if (iconClass.includes('rain') || iconClass.includes('showers')) {
+                                iconColor = '#0ea5e9';
+                            } else if (iconClass === 'fa-snowflake') {
+                                iconColor = '#38bdf8';
+                            } else if (iconClass === 'fa-cloud-bolt') {
+                                iconColor = '#a855f7';
+                            }
+                            
+                            const iconEl = document.getElementById(`${cardPrefix}-icon`);
+                            if (iconEl) {
+                                iconEl.className = `fa-solid ${iconClass} forecast-icon`;
+                                iconEl.style.color = iconColor;
+                            }
+                            
+                            const tempEl = document.getElementById(`${cardPrefix}-temp`);
+                            if (tempEl) {
+                                tempEl.textContent = `${Math.round(tempMin)} / ${Math.round(tempMax)} °C`;
+                            }
+                            
+                            const windEl = document.getElementById(`${cardPrefix}-wind`);
+                            if (windEl) {
+                                const windDirStr = getWindDirectionSlo(windDir);
+                                windEl.textContent = `${Math.round(windSpeed)} km/h (${windDirStr})`;
+                            }
+                        }
+                    };
+                    
+                    updateForecastCard('forecast-day-1', idxTomorrow);
+                    updateForecastCard('forecast-day-2', idxDayAfter);
+                }
+            } catch (err) {
+                console.error("Error populating 2-day forecast:", err);
+            }
         }
     } catch (e) {
         console.error("Error loading meteorological forecast:", e);
@@ -385,8 +505,8 @@ async function refreshData() {
             }
         }
         
-        // Calculate high/low tide predictions
-        calculateTideExtrema(latestTime);
+        // Calculate high/low tide predictions based on current device time
+        calculateTideExtrema(new Date());
         
         // Draw the chart
         renderChart();
@@ -437,9 +557,13 @@ function calculateTideExtrema(currentTime) {
         nextLow: nextLow ? { time: nextLow.time.toString(), level: nextLow.level } : null
     });
     
+    const SLO_DAYS = ["NED", "PON", "TOR", "SRE", "ČET", "PET", "SOB"];
+    
     // Update the widgets
     if (nextHigh) {
-        const highTimeStr = nextHigh.time.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
+        const dayPrefix = SLO_DAYS[nextHigh.time.getDay()];
+        const timeStr = nextHigh.time.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
+        const highTimeStr = `${dayPrefix} ${timeStr}`;
         document.getElementById('next-high-time').textContent = highTimeStr;
         const relativeVal = nextHigh.level;
         const relativeSign = relativeVal >= 0 ? '+' : '';
@@ -447,7 +571,9 @@ function calculateTideExtrema(currentTime) {
     }
     
     if (nextLow) {
-        const lowTimeStr = nextLow.time.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
+        const dayPrefix = SLO_DAYS[nextLow.time.getDay()];
+        const timeStr = nextLow.time.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
+        const lowTimeStr = `${dayPrefix} ${timeStr}`;
         document.getElementById('next-low-time').textContent = lowTimeStr;
         const relativeVal = nextLow.level;
         const relativeSign = relativeVal >= 0 ? '+' : '';
@@ -514,7 +640,7 @@ async function loadWeather() {
             document.getElementById('air-pressure-val').textContent = `${data.tlak} hPa`;
             document.getElementById('humidity-val').textContent = `${data.vlaga}%`;
             document.getElementById('wind-speed-val').textContent = `${parseFloat(data.veter.zdaj).toFixed(1)} m/s`;
-            document.getElementById('wind-dir-val').textContent = `${data.veter.smer}°`;
+            document.getElementById('wind-dir-val').textContent = getWindDirectionSlo(parseFloat(data.veter.smer));
             
             // Sunrise/Sunset
             document.getElementById('sunrise-time').textContent = data.soncni.vzhod;
@@ -550,7 +676,52 @@ function renderChart() {
         // Map predicted levels (already relative)
         const predictedSeriesData = predictions.map(d => [d.time.getTime(), d.level]);
         
-        // Calculate hybrid predictions (astronomical tide + pressure & wind correction from Open-Meteo)
+        // Create a fast lookup map for astronomical predictions to optimize lookup speeds
+        const predictionMap = new Map();
+        predictions.forEach(p => {
+            const roundedTimeMs = Math.round(p.time.getTime() / (10 * 60 * 1000)) * (10 * 60 * 1000);
+            predictionMap.set(roundedTimeMs, p.level);
+        });
+        
+        // Calculate rolling seasonal bias offset (Actual - Prediction - Weather) over the last 3 days (72 hours)
+        let totalDiffSum = 0;
+        let diffCount = 0;
+        
+        const latestActualTime = actualData[actualData.length - 1].time;
+        const threeDaysAgoMs = latestActualTime.getTime() - (72 * 60 * 60 * 1000);
+        
+        actualData.forEach(d => {
+            const timeMs = d.time.getTime();
+            if (timeMs >= threeDaysAgoMs) {
+                const roundedTimeMs = Math.round(timeMs / (10 * 60 * 1000)) * (10 * 60 * 1000);
+                const predRel = predictionMap.get(roundedTimeMs);
+                
+                if (predRel !== undefined) {
+                    const hourMs = Math.round(timeMs / (3600 * 1000)) * (3600 * 1000);
+                    const meteo = meteoForecastMap.get(hourMs);
+                    
+                    let meteoEffect = 0;
+                    if (meteo) {
+                        const pCorr = 1013.25 - meteo.pressureKoper;
+                        const grad = meteo.pressureDubrovnik - meteo.pressureKoper;
+                        const gradCorr = 2.0 * grad; // 2 cm of surge per hPa pressure difference
+                        meteoEffect = pCorr + gradCorr;
+                    }
+                    
+                    const actualRel = d.level - MEAN_SEA_LEVEL_OFFSET;
+                    
+                    // Difference after subtracting both astro prediction and meteo correction
+                    const diff = actualRel - (predRel + meteoEffect);
+                    totalDiffSum += diff;
+                    diffCount++;
+                }
+            }
+        });
+        
+        const biasOffset = diffCount > 0 ? (totalDiffSum / diffCount) : 0;
+        console.log(`Calculated weather-corrected rolling bias: ${biasOffset.toFixed(2)} cm over ${diffCount} points.`);
+        
+        // Calculate hybrid predictions (astronomical tide + rolling bias + pressure-gradient weather correction)
         const hybridSeriesData = [];
         predictions.forEach(d => {
             const timeMs = d.time.getTime();
@@ -560,24 +731,13 @@ function renderChart() {
             const meteo = meteoForecastMap.get(hourMs);
             
             if (meteo) {
-                // Pressure correction: 1013.25 - pressure in hPa = correction in cm
-                const pCorr = 1013.25 - meteo.pressure;
+                const pCorr = 1013.25 - meteo.pressureKoper;
+                const grad = meteo.pressureDubrovnik - meteo.pressureKoper;
+                const gradCorr = 2.0 * grad;
+                const meteoEffect = pCorr + gradCorr;
                 
-                // Wind correction: projection onto Adriatic axis (150 degrees)
-                const windSpeedMs = meteo.windSpeed / 3.6; // km/h to m/s
-                const angleRad = (meteo.windDir - 150) * Math.PI / 180;
-                const vEff = windSpeedMs * Math.cos(angleRad);
-                
-                let wCorr = 0;
-                if (vEff > 0) {
-                    wCorr = 0.22 * vEff * vEff; // Jugo water accumulation
-                } else {
-                    wCorr = 0.06 * vEff * Math.abs(vEff); // Burja water blow-out
-                }
-                
-                const totalCorr = pCorr + wCorr;
-                const hybridVal = d.level + totalCorr;
-                
+                // Hybrid level = astronomical + seasonal bias + meteorological correction
+                const hybridVal = d.level + biasOffset + meteoEffect;
                 hybridSeriesData.push([timeMs, hybridVal]);
             }
         });
@@ -688,6 +848,11 @@ function renderChart() {
         xAxis: {
             type: 'datetime',
             gridLineWidth: 1,
+            dateTimeLabelFormats: {
+                hour: '%H:%M',
+                day: '%a %e. %m.',
+                week: '%a %e. %m.'
+            },
             labels: { style: { color: labelColor } },
             min: minTime,
             max: maxTime,
@@ -820,32 +985,36 @@ function updateMoonPhase() {
     const ageDays = ((diffMs % synodicMonth) + synodicMonth) % synodicMonth / 86400000;
     
     let phaseName = "";
-    let iconClass = "fa-moon";
+    let iconClass = "fa-solid fa-moon";
+    let iconTransform = "";
     
     if (ageDays < 1.0 || ageDays >= 28.53) {
-        phaseName = "Mlaj (Nova luna)";
-        iconClass = "fa-circle"; // empty circle
+        phaseName = "Mlaj";
+        iconClass = "fa-regular fa-circle";
     } else if (ageDays < 6.38) {
         phaseName = "Rastoči srp";
-        iconClass = "fa-moon";
+        iconClass = "fa-solid fa-moon";
     } else if (ageDays < 8.38) {
         phaseName = "Prvi krajec";
-        iconClass = "fa-moon";
+        iconClass = "fa-solid fa-circle-half-stroke";
     } else if (ageDays < 13.76) {
-        phaseName = "Rastoča gibanja";
-        iconClass = "fa-moon";
+        phaseName = "Rastoča luna";
+        iconClass = "fa-solid fa-circle-half-stroke";
     } else if (ageDays < 15.76) {
-        phaseName = "Ščip (Polna luna)";
-        iconClass = "fa-solid fa-circle"; // solid circle
+        phaseName = "Ščip";
+        iconClass = "fa-solid fa-circle";
     } else if (ageDays < 21.15) {
-        phaseName = "Padajoča gibanja";
-        iconClass = "fa-moon";
+        phaseName = "Padajoča luna";
+        iconClass = "fa-solid fa-circle-half-stroke";
+        iconTransform = "rotate(180deg)";
     } else if (ageDays < 23.15) {
         phaseName = "Zadnji krajec";
-        iconClass = "fa-moon";
+        iconClass = "fa-solid fa-circle-half-stroke";
+        iconTransform = "rotate(180deg)";
     } else {
-        phaseName = "Izginjajoči srp";
-        iconClass = "fa-moon";
+        phaseName = "Padajoči srp";
+        iconClass = "fa-solid fa-moon";
+        iconTransform = "scaleX(-1)";
     }
     
     // Calculate Tide Coefficient (0 = Neap, 100 = Spring)
@@ -872,8 +1041,9 @@ function updateMoonPhase() {
     
     const moonIcon = document.getElementById('moon-icon');
     if (moonIcon) {
-        moonIcon.className = `fa-solid ${iconClass}`;
-        if (phaseName.includes("Ščip")) {
+        moonIcon.className = iconClass;
+        moonIcon.style.transform = iconTransform;
+        if (phaseName === "Ščip") {
             moonIcon.style.textShadow = "0 0 10px #fff";
             moonIcon.style.color = "#fff";
         } else {

@@ -17,7 +17,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <!-- CSS Stylesheet -->
-    <link rel="stylesheet" href="index.css?v=5">
+    <link rel="stylesheet" href="index.css?v=6">
     <link rel="manifest" href="manifest.json">
     
     <!-- Highcharts Stock Library -->
@@ -121,27 +121,35 @@
                 
                 <div class="forecast-container">
                     <!-- Danes -->
-                    <div class="forecast-day-card today-card">
+                    <div class="forecast-day-card today-card" id="forecast-card-0" onclick="toggleHourlyForecast(0)">
                         <span class="forecast-day-name">Danes</span>
                         <div class="weather-icon-box" id="weather-icon-box">
                             <i class="fa-solid fa-sun" id="weather-icon"></i>
                         </div>
                         <span class="forecast-temp" id="air-temp-val">--°C</span>
-                        <span class="forecast-wind" id="air-temp-feels-val">Občutek: --</span>
+                        <span class="forecast-wind" id="air-temp-feels-val">Obč. --</span>
                     </div>
                     <!-- Jutri -->
-                    <div class="forecast-day-card">
+                    <div class="forecast-day-card" id="forecast-card-1" onclick="toggleHourlyForecast(1)">
                         <span class="forecast-day-name">Jutri</span>
                         <i class="fa-solid fa-sun forecast-icon" id="forecast-day-1-icon" style="color: #f59e0b;"></i>
                         <span class="forecast-temp" id="forecast-day-1-temp">-- / -- °C</span>
                         <span class="forecast-wind" id="forecast-day-1-wind">-- km/h</span>
                     </div>
                     <!-- Pojutrišnjem -->
-                    <div class="forecast-day-card">
+                    <div class="forecast-day-card" id="forecast-card-2" onclick="toggleHourlyForecast(2)">
                         <span class="forecast-day-name">Pojutr.</span>
                         <i class="fa-solid fa-cloud-sun forecast-icon" id="forecast-day-2-icon" style="color: #94a3b8;"></i>
                         <span class="forecast-temp" id="forecast-day-2-temp">-- / -- °C</span>
                         <span class="forecast-wind" id="forecast-day-2-wind">-- km/h</span>
+                    </div>
+                </div>
+                
+                <!-- Detailed sliding hourly forecast widget -->
+                <div class="hourly-forecast-panel" id="hourly-forecast-panel" style="display: none;">
+                    <div class="hourly-forecast-title" id="hourly-forecast-title">Podrobna napoved za danes</div>
+                    <div class="hourly-scroll-container" id="hourly-scroll-container">
+                        <!-- Populated dynamically via JS -->
                     </div>
                 </div>
                 
@@ -163,7 +171,7 @@
                         <div class="met-item-label">
                             <i class="fa-solid fa-wind"></i> Hitrost vetra
                         </div>
-                        <span class="met-item-value" id="wind-speed-val">-- m/s</span>
+                        <span class="met-item-value" id="wind-speed-val">-- km/h</span>
                     </li>
                     <li>
                         <div class="met-item-label">
@@ -254,8 +262,8 @@
     </div>
 
     <!-- Application Logic Scripts -->
-    <script src="Arcots.js?v=5"></script>
-    <script src="TideCalculator.js?v=5"></script>
-    <script src="index.js?v=5"></script>
+    <script src="Arcots.js?v=6"></script>
+    <script src="TideCalculator.js?v=6"></script>
+    <script src="index.js?v=6"></script>
 </body>
 </html>

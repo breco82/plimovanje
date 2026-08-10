@@ -404,10 +404,10 @@ function mapArsoIconToFa(nnIcon) {
     if (name.includes("fg") || name.includes("fog") || name.includes("smog") || name.includes("megl")) {
         return { icon: "fa-smog", color: "#64748b" };
     }
-    if (name.includes("overcast") || name.includes("prevcloudy") || name.includes("modcloudy") || name.includes("oblač")) {
+    if (name.includes("overcast") || name.includes("prevcloudy") || name.includes("oblač")) {
         return { icon: "fa-cloud", color: "#64748b" };
     }
-    if (name.includes("partcloudy") || name.includes("slightcloudy") || name.includes("mostclear") || name.includes("delno")) {
+    if (name.includes("partcloudy") || name.includes("modcloudy") || name.includes("delno") || name.includes("zmerno")) {
         return { icon: "fa-cloud-sun", color: "#f59e0b" };
     }
     return { icon: "fa-sun", color: "#f59e0b" };
@@ -496,7 +496,7 @@ async function loadMeteoData() {
                             const windSpeed = daily.wind_speed_10m_max[idx];
                             const windDir = daily.wind_direction_10m_dominant[idx];
                             
-                            const { icon, color } = mapArsoIconToFa(wCode === 0 ? "clear" : (wCode <= 3 ? "partCloudy" : "cloud"));
+                            const { icon, color } = mapArsoIconToFa(wCode === 0 || wCode === 1 ? "clear" : (wCode === 2 ? "partCloudy" : "overcast"));
                             
                             const iconEl = document.getElementById(`${cardPrefix}-icon`);
                             if (iconEl) {
@@ -637,7 +637,7 @@ function toggleHourlyForecast(dayOffset) {
     } else {
         filtered.forEach(item => {
             const timeStr = item.time.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
-            const { icon, color } = mapArsoIconToFa(item.weatherCode === 0 ? "clear" : (item.weatherCode <= 3 ? "partCloudy" : "cloud"));
+            const { icon, color } = mapArsoIconToFa(item.weatherCode === 0 || item.weatherCode === 1 ? "clear" : (item.weatherCode === 2 ? "partCloudy" : "overcast"));
             
             const itemEl = document.createElement('div');
             itemEl.className = 'hourly-item';

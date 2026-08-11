@@ -9,6 +9,7 @@ let currentChart = null; // Highcharts instance
 let meteoForecastMap = new Map(); // Open-Meteo hourly pressure and wind map
 let openMeteoHourlyForecast = []; // Global variable to store hourly forecast items
 let activeHourlyDayOffset = null; // Track which day's hourly forecast is currently open
+let arsoForecastData = null; // Global variable to store raw ARSO Koper JSON forecast
 
 // Datum offset constant (Srednja gladina morja / Mean sea level - SVS2010 reference datum is 217.0 cm above gauge zero)
 const MEAN_SEA_LEVEL_OFFSET = 217.0;
@@ -332,55 +333,15 @@ function getWindDirectionSlo(deg) {
     // Round to closest 45 degree sector (0-360)
     const idx = Math.round(deg / 45) % 8;
     return directions[idx];
-}
-
-async function fetchArsoForecast() {
+}async function fetchArsoJsonForecast() {
     try {
-        // Fetch official ARSO Obanlo-kraška forecast via CORS proxy
-        const url = 'https://corsproxy.io/?' + encodeURIComponent('https://meteo.arso.gov.si/uploads/probase/www/fproduct/text/sl/fcast_SI_OBALNO-KRASKA_latest.xml');
+        const url = 'https://corsproxy.io/?' + encodeURIComponent('https://vreme.arso.gov.si/api/1.0/location/?location=Koper');
         const response = await fetch(url);
-        if (!response.ok) throw new Error("ARSO XML response not ok");
-        const text = await response.text();
-        
-        const parser = new DOMParser();
-        const xml = parser.parseFromString(text, "text/xml");
-        const metDataElements = xml.getElementsByTagName("metData");
-        
-        const forecastsByDay = new Map();
-        
-        for (let i = 0; i < metDataElements.length; i++) {
-            const el = metDataElements[i];
-            const validDay = el.getElementsByTagName("valid_day")[0]?.textContent || "";
-            const validDaypart = el.getElementsByTagName("valid_daypart")[0]?.textContent || "";
-            const nnIcon = el.getElementsByTagName("nn_icon")[0]?.textContent || "";
-            const nnShortText = el.getElementsByTagName("nn_shortText")[0]?.textContent || "";
-            const tempVal = parseFloat(el.getElementsByTagName("t")[0]?.textContent || "NaN");
-            const windDir = el.getElementsByTagName("dd_shortText")[0]?.textContent || "--";
-            const windSpeed = parseFloat(el.getElementsByTagName("ff_value_kmh")[0]?.textContent || "0");
-            
-            if (!validDay) continue;
-            
-            const cleanDay = validDay.split(" ")[0].toLowerCase();
-            
-            if (!forecastsByDay.has(cleanDay)) {
-                forecastsByDay.set(cleanDay, {
-                    dayName: validDay.split(" ")[0],
-                    parts: []
-                });
-            }
-            
-            forecastsByDay.get(cleanDay).parts.push({
-                daypart: validDaypart,
-                icon: nnIcon,
-                desc: nnShortText,
-                temp: tempVal,
-                windDir: windDir,
-                windSpeed: windSpeed
-            });
-        }
-        return forecastsByDay;
+        if (!response.ok) throw new Error("ARSO JSON response not ok");
+        const json = await response.json();
+        return json;
     } catch (e) {
-        console.warn("Could not fetch ARSO XML forecast (CORS proxy issue?), falling back to Open-Meteo:", e);
+        console.warn("Could not fetch ARSO JSON forecast, falling back to Open-Meteo:", e);
         return null;
     }
 }
@@ -437,7 +398,7 @@ async function loadMeteoData() {
             }
             console.log(`Loaded ${meteoForecastMap.size} Open-Meteo dual-pressure weather points.`);
             
-            // Parse and save hourly details for the slider widget
+            // Parse and save hourly details for the slider widget (as fallback)
             openMeteoHourlyForecast = [];
             const hourly = json[0].hourly;
             const startOfToday = new Date();
@@ -455,80 +416,42 @@ async function loadMeteoData() {
                 }
             }
             
-            // Try fetching official ARSO forecasts
-            const arsoForecasts = await fetchArsoForecast();
+            // Fetch official ARSO Koper JSON forecast
+            arsoForecastData = await fetchArsoJsonForecast();
             
-            // Helper to get Slovenian day name for Tomorrow and Day After
-            const getSloDayName = (dateOffset) => {
-                const targetDate = new Date();
-                targetDate.setDate(targetDate.getDate() + dateOffset);
-                const weekdays = ["nedelja", "ponedeljek", "torek", "sreda", "četrtek", "petek", "sobota"];
-                return weekdays[targetDate.getDay()];
-            };
+            // Set dynamic Slovenian names of days for Tomorrow and Day After
+            const daysSloNominative = ["Nedelja", "Ponedeljek", "Torek", "Sreda", "Četrtek", "Petek", "Sobota"];
+            const dateTomorrow = new Date();
+            dateTomorrow.setDate(dateTomorrow.getDate() + 1);
+            const dateDayAfter = new Date();
+            dateDayAfter.setDate(dateDayAfter.getDate() + 2);
             
-            const dayTomorrow = getSloDayName(1);
-            const dayDayAfter = getSloDayName(2);
+            const tomorrowDayName = daysSloNominative[dateTomorrow.getDay()];
+            const dayAfterDayName = daysSloNominative[dateDayAfter.getDay()];
             
-            // Update Tomorrow and Day After cards
-            try {
-                if (json[0].daily) {
-                    const daily = json[0].daily;
-                    const dTimes = daily.time;
+            const tomorrowNameEl = document.getElementById('forecast-day-1-name');
+            if (tomorrowNameEl) tomorrowNameEl.textContent = tomorrowDayName;
+            
+            const dayAfterNameEl = document.getElementById('forecast-day-2-name');
+            if (dayAfterNameEl) dayAfterNameEl.textContent = dayAfterDayName;
+            
+            // Try updating from ARSO Koper JSON API
+            let arsoSuccess = false;
+            if (arsoForecastData && arsoForecastData.forecast24h?.features?.[0]?.properties?.days) {
+                try {
+                    const days = arsoForecastData.forecast24h.features[0].properties.days;
                     
-                    const getIndexForDate = (dateOffset) => {
-                        const targetDate = new Date();
-                        targetDate.setDate(targetDate.getDate() + dateOffset);
-                        const targetStr = targetDate.getFullYear() + '-' + 
-                                          String(targetDate.getMonth() + 1).padStart(2, '0') + '-' + 
-                                          String(targetDate.getDate()).padStart(2, '0');
-                        return dTimes.indexOf(targetStr);
-                    };
-                    
-                    const idxTomorrow = getIndexForDate(1);
-                    const idxDayAfter = getIndexForDate(2);
-                    
-                    // Fallback updater using Open-Meteo
-                    const updateForecastCard = (cardPrefix, idx) => {
-                        if (idx !== -1) {
-                            const wCode = daily.weather_code[idx];
-                            const tempMin = daily.temperature_2m_min[idx];
-                            const tempMax = daily.temperature_2m_max[idx];
-                            const windSpeed = daily.wind_speed_10m_max[idx];
-                            const windDir = daily.wind_direction_10m_dominant[idx];
-                            
-                            const { icon, color } = mapArsoIconToFa(wCode === 0 || wCode === 1 ? "clear" : (wCode === 2 ? "partCloudy" : "overcast"));
-                            
-                            const iconEl = document.getElementById(`${cardPrefix}-icon`);
-                            if (iconEl) {
-                                iconEl.className = `fa-solid ${icon} forecast-icon`;
-                                iconEl.style.color = color;
-                            }
-                            
-                            const tempEl = document.getElementById(`${cardPrefix}-temp`);
-                            if (tempEl) {
-                                tempEl.textContent = `${Math.round(tempMin)} / ${Math.round(tempMax)} °C`;
-                            }
-                            
-                            const windEl = document.getElementById(`${cardPrefix}-wind`);
-                            if (windEl) {
-                                const windDirStr = getWindDirectionSlo(windDir);
-                                windEl.textContent = `${Math.round(windSpeed)} km/h (${windDirStr})`;
-                            }
-                        }
-                    };
-                    
-                    // Updater using parsed ARSO XML
-                    const updateCardFromArso = (cardPrefix, dayData) => {
-                        if (!dayData || dayData.parts.length === 0) return false;
+                    const updateCardFromArsoJson = (cardPrefix, dayData) => {
+                        if (!dayData || !dayData.timeline || dayData.timeline.length === 0) return false;
+                        const timeline = dayData.timeline[0];
                         
-                        const temps = dayData.parts.map(p => p.temp).filter(t => !isNaN(t));
-                        if (temps.length === 0) return false;
+                        const tempMin = parseFloat(timeline.tnsyn);
+                        const tempMax = parseFloat(timeline.txsyn);
+                        const windSpeed = parseFloat(timeline.ff_val || "0");
+                        const windDir = timeline.dd_shortText || "";
+                        const iconName = timeline.clouds_icon_wwsyn_icon || "";
                         
-                        const tempMin = Math.min(...temps);
-                        const tempMax = Math.max(...temps);
-                        
-                        const mainPart = dayData.parts.find(p => p.daypart.includes("popoldne") || p.daypart.includes("sredi dneva")) || dayData.parts[0];
-                        const { icon, color } = mapArsoIconToFa(mainPart.icon || mainPart.desc);
+                        const { icon, color } = mapArsoIconToFa(iconName);
                         
                         const iconEl = document.getElementById(`${cardPrefix}-icon`);
                         if (iconEl) {
@@ -543,39 +466,134 @@ async function loadMeteoData() {
                         
                         const windEl = document.getElementById(`${cardPrefix}-wind`);
                         if (windEl) {
-                            windEl.textContent = `${Math.round(mainPart.windSpeed)} km/h (${mainPart.windDir})`;
+                            windEl.textContent = `${Math.round(windSpeed)} km/h (${windDir})`;
                         }
                         return true;
                     };
                     
-                    let tomorrowSuccess = false;
-                    let dayAfterSuccess = false;
-                    
-                    if (arsoForecasts) {
-                        tomorrowSuccess = updateCardFromArso('forecast-day-1', arsoForecasts.get(dayTomorrow));
-                        dayAfterSuccess = updateCardFromArso('forecast-day-2', arsoForecasts.get(dayDayAfter));
-                    }
-                    
-                    if (!tomorrowSuccess) {
-                        console.log("Using Open-Meteo fallback for Jutri");
-                        updateForecastCard('forecast-day-1', idxTomorrow);
-                    } else {
-                        console.log("Successfully loaded official ARSO forecast for Jutri");
-                    }
-                    if (!dayAfterSuccess) {
-                        console.log("Using Open-Meteo fallback for Pojutrišnjem");
-                        updateForecastCard('forecast-day-2', idxDayAfter);
-                    } else {
-                        console.log("Successfully loaded official ARSO forecast for Pojutrišnjem");
-                    }
+                    const tomorrowSuccess = updateCardFromArsoJson('forecast-day-1', days[1]);
+                    const dayAfterSuccess = updateCardFromArsoJson('forecast-day-2', days[2]);
+                    arsoSuccess = tomorrowSuccess && dayAfterSuccess;
+                } catch (jsonErr) {
+                    console.error("Error parsing ARSO Koper JSON forecast daily cards:", jsonErr);
                 }
-            } catch (err) {
-                console.error("Error populating 2-day forecast cards:", err);
+            }
+            
+            // Fallback to Open-Meteo if ARSO is not available
+            if (!arsoSuccess) {
+                console.log("Using Open-Meteo daily forecast fallback");
+                try {
+                    if (json[0].daily) {
+                        const daily = json[0].daily;
+                        const dTimes = daily.time;
+                        
+                        const getIndexForDate = (dateOffset) => {
+                            const targetDate = new Date();
+                            targetDate.setDate(targetDate.getDate() + dateOffset);
+                            const targetStr = targetDate.getFullYear() + '-' + 
+                                              String(targetDate.getMonth() + 1).padStart(2, '0') + '-' + 
+                                              String(targetDate.getDate()).padStart(2, '0');
+                            return dTimes.indexOf(targetStr);
+                        };
+                        
+                        const idxTomorrow = getIndexForDate(1);
+                        const idxDayAfter = getIndexForDate(2);
+                        
+                        const updateForecastCard = (cardPrefix, idx) => {
+                            if (idx !== -1) {
+                                const wCode = daily.weather_code[idx];
+                                const tempMin = daily.temperature_2m_min[idx];
+                                const tempMax = daily.temperature_2m_max[idx];
+                                const windSpeed = daily.wind_speed_10m_max[idx];
+                                const windDir = daily.wind_direction_10m_dominant[idx];
+                                
+                                const { icon, color } = mapArsoIconToFa(wCode === 0 || wCode === 1 ? "clear" : (wCode === 2 ? "partCloudy" : "overcast"));
+                                
+                                const iconEl = document.getElementById(`${cardPrefix}-icon`);
+                                if (iconEl) {
+                                    iconEl.className = `fa-solid ${icon} forecast-icon`;
+                                    iconEl.style.color = color;
+                                }
+                                
+                                const tempEl = document.getElementById(`${cardPrefix}-temp`);
+                                if (tempEl) {
+                                    tempEl.textContent = `${Math.round(tempMin)} / ${Math.round(tempMax)} °C`;
+                                }
+                                
+                                const windEl = document.getElementById(`${cardPrefix}-wind`);
+                                if (windEl) {
+                                    const windDirStr = getWindDirectionSlo(windDir);
+                                    windEl.textContent = `${Math.round(windSpeed)} km/h (${windDirStr})`;
+                                }
+                            }
+                        };
+                        
+                        updateForecastCard('forecast-day-1', idxTomorrow);
+                        updateForecastCard('forecast-day-2', idxDayAfter);
+                    }
+                } catch (fallbackErr) {
+                    console.error("Error populating Open-Meteo fallback cards:", fallbackErr);
+                }
+            } else {
+                console.log("Successfully loaded official ARSO Koper JSON forecast for daily cards.");
             }
         }
     } catch (e) {
         console.error("Error loading meteorological forecast:", e);
     }
+}
+
+function renderArso3hForecast(dayOffset) {
+    const container = document.getElementById('hourly-scroll-container');
+    if (!container || !arsoForecastData) return false;
+    
+    const days = arsoForecastData.forecast3h?.features?.[0]?.properties?.days;
+    if (!days || !days[dayOffset]) return false;
+    
+    const targetDay = days[dayOffset];
+    const timeline = targetDay.timeline || [];
+    
+    container.innerHTML = '';
+    
+    let filtered = timeline;
+    const now = new Date();
+    
+    if (dayOffset === 0) {
+        // Filter out past hours for today's forecast
+        filtered = timeline.filter(item => {
+            const itemDate = new Date(item.valid);
+            return itemDate >= now;
+        });
+    }
+    
+    if (filtered.length === 0) {
+        container.innerHTML = '<div style="font-size:0.8rem;color:var(--text-secondary);width:100%;text-align:center;padding:10px;">Podatki niso na voljo.</div>';
+        return true;
+    }
+    
+    filtered.forEach(item => {
+        const itemDate = new Date(item.valid);
+        const timeStr = itemDate.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
+        
+        const tempVal = parseFloat(item.t);
+        const windSpeed = parseFloat(item.ff_val || "0");
+        const windDir = item.dd_shortText || "";
+        const iconName = item.clouds_icon_wwsyn_icon || "";
+        
+        const { icon, color } = mapArsoIconToFa(iconName);
+        
+        const itemEl = document.createElement('div');
+        itemEl.className = 'hourly-item';
+        itemEl.innerHTML = `
+            <span class="hourly-time">${timeStr}</span>
+            <i class="fa-solid ${icon} hourly-icon" style="color: ${color};"></i>
+            <span class="hourly-temp">${Math.round(tempVal)}°C</span>
+            <span class="hourly-wind">${Math.round(windSpeed)} km/h</span>
+        `;
+        container.appendChild(itemEl);
+    });
+    
+    return true;
 }
 
 function toggleHourlyForecast(dayOffset) {
@@ -587,7 +605,8 @@ function toggleHourlyForecast(dayOffset) {
     
     if (activeHourlyDayOffset === dayOffset) {
         panel.style.display = 'none';
-        document.getElementById(`forecast-card-${activeHourlyDayOffset}`).classList.remove('active');
+        const activeCard = document.getElementById(`forecast-card-${activeHourlyDayOffset}`);
+        if (activeCard) activeCard.classList.remove('active');
         activeHourlyDayOffset = null;
         return;
     }
@@ -604,51 +623,62 @@ function toggleHourlyForecast(dayOffset) {
     const targetDate = new Date();
     targetDate.setDate(targetDate.getDate() + dayOffset);
     
+    const daysSloNominative = ["Nedelja", "Ponedeljek", "Torek", "Sreda", "Četrtek", "Petek", "Sobota"];
     const daysSloAccusative = ["nedeljo", "ponedeljek", "torek", "sredo", "četrtek", "petek", "soboto"];
-    const dayLabel = (dayOffset === 0) ? "danes" : ((dayOffset === 1) ? "jutri" : `naslednji ${daysSloAccusative[targetDate.getDay()]}`);
-    titleEl.textContent = `Podrobna urna napoved za ${dayLabel}`;
     
-    let filtered = [];
-    const now = new Date();
-    
-    if (dayOffset === 0) {
-        const nextHour = new Date(now.getTime());
-        nextHour.setMinutes(0, 0, 0);
-        nextHour.setHours(nextHour.getHours() + 1);
-        
-        const endOfToday = new Date(now.getTime());
-        endOfToday.setHours(23, 59, 59, 999);
-        
-        filtered = openMeteoHourlyForecast.filter(item => item.time >= nextHour && item.time <= endOfToday);
-    } else {
-        const startOfDay = new Date(targetDate.getTime());
-        startOfDay.setHours(0, 0, 0, 0);
-        
-        const endOfDay = new Date(targetDate.getTime());
-        endOfDay.setHours(23, 59, 59, 999);
-        
-        filtered = openMeteoHourlyForecast.filter(item => item.time >= startOfDay && item.time <= endOfDay);
+    let dayTitleText = `Podrobna napoved za danes`;
+    if (dayOffset > 0) {
+        dayTitleText = `Podrobna napoved za ${daysSloAccusative[targetDate.getDay()]}`;
     }
+    titleEl.textContent = dayTitleText;
     
-    container.innerHTML = '';
+    // Attempt rendering using official ARSO 3h JSON
+    const arsoSuccess = renderArso3hForecast(dayOffset);
     
-    if (filtered.length === 0) {
-        container.innerHTML = '<div style="font-size:0.8rem;color:var(--text-secondary);width:100%;text-align:center;padding:10px;">Podatki niso na voljo.</div>';
-    } else {
-        filtered.forEach(item => {
-            const timeStr = item.time.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
-            const { icon, color } = mapArsoIconToFa(item.weatherCode === 0 || item.weatherCode === 1 ? "clear" : (item.weatherCode === 2 ? "partCloudy" : "overcast"));
+    if (!arsoSuccess) {
+        console.log("Using Open-Meteo fallback for detail widget");
+        let filtered = [];
+        const now = new Date();
+        
+        if (dayOffset === 0) {
+            const nextHour = new Date(now.getTime());
+            nextHour.setMinutes(0, 0, 0);
+            nextHour.setHours(nextHour.getHours() + 1);
             
-            const itemEl = document.createElement('div');
-            itemEl.className = 'hourly-item';
-            itemEl.innerHTML = `
-                <span class="hourly-time">${timeStr}</span>
-                <i class="fa-solid ${icon} hourly-icon" style="color: ${color};"></i>
-                <span class="hourly-temp">${Math.round(item.temp)}°C</span>
-                <span class="hourly-wind">${Math.round(item.windSpeed)} km/h</span>
-            `;
-            container.appendChild(itemEl);
-        });
+            const endOfToday = new Date(now.getTime());
+            endOfToday.setHours(23, 59, 59, 999);
+            
+            filtered = openMeteoHourlyForecast.filter(item => item.time >= nextHour && item.time <= endOfToday);
+        } else {
+            const startOfDay = new Date(targetDate.getTime());
+            startOfDay.setHours(0, 0, 0, 0);
+            
+            const endOfDay = new Date(targetDate.getTime());
+            endOfDay.setHours(23, 59, 59, 999);
+            
+            filtered = openMeteoHourlyForecast.filter(item => item.time >= startOfDay && item.time <= endOfDay);
+        }
+        
+        container.innerHTML = '';
+        
+        if (filtered.length === 0) {
+            container.innerHTML = '<div style="font-size:0.8rem;color:var(--text-secondary);width:100%;text-align:center;padding:10px;">Podatki niso na voljo.</div>';
+        } else {
+            filtered.forEach(item => {
+                const timeStr = item.time.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
+                const { icon, color } = mapArsoIconToFa(item.weatherCode === 0 || item.weatherCode === 1 ? "clear" : (item.weatherCode === 2 ? "partCloudy" : "overcast"));
+                
+                const itemEl = document.createElement('div');
+                itemEl.className = 'hourly-item';
+                itemEl.innerHTML = `
+                    <span class="hourly-time">${timeStr}</span>
+                    <i class="fa-solid ${icon} hourly-icon" style="color: ${color};"></i>
+                    <span class="hourly-temp">${Math.round(item.temp)}°C</span>
+                    <span class="hourly-wind">${Math.round(item.windSpeed)} km/h</span>
+                `;
+                container.appendChild(itemEl);
+            });
+        }
     }
     
     panel.style.display = 'block';

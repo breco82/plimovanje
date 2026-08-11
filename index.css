@@ -1089,4 +1089,31 @@ body.light-theme .hourly-scroll-container::-webkit-scrollbar-thumb {
     background: rgba(0, 0, 0, 0.15);
 }
 
+.hourly-rain {
+    font-size: 0.65rem;
+    color: #38bdf8; /* Nice sky blue for rain */
+    margin-top: 1px;
+    font-weight: 600;
+}
+
+body.light-theme .hourly-rain {
+    color: #0284c7; /* Darker blue for light theme */
+}
+
+#weather-source-badge {
+    font-size: 0.65rem; 
+    color: var(--text-secondary); 
+    opacity: 0.85; 
+    font-weight: 600; 
+    padding: 2px 6px; 
+    background: rgba(255, 255, 255, 0.05); 
+    border-radius: 4px; 
+    border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+body.light-theme #weather-source-badge {
+    background: rgba(0, 0, 0, 0.03);
+    border-color: rgba(0, 0, 0, 0.02);
+}
+
 

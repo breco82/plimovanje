@@ -17,7 +17,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <!-- CSS Stylesheet -->
-    <link rel="stylesheet" href="index.css?v=8">
+    <link rel="stylesheet" href="index.css?v=9">
     <link rel="manifest" href="manifest.json">
     
     <!-- Highcharts Stock Library -->
@@ -116,8 +116,11 @@
         <div class="main-content-layout">
             <!-- Sidebar: Weather & Met -->
             <aside class="sidebar-card">
-                <h2>Vremenske razmere</h2>
-                <div class="weather-desc-text" id="weather-desc-val">Nalaganje...</div>
+                <div class="weather-header-row" style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 8px;">
+                    <h2 style="margin: 0; font-size: 1.1rem;">Vremenske razmere</h2>
+                    <span id="weather-source-badge">Vir: --</span>
+                </div>
+                <div class="weather-desc-text" id="weather-desc-val" style="margin-top: 0;">Nalaganje...</div>
                 
                 <div class="forecast-container">
                     <!-- Danes -->
@@ -262,8 +265,8 @@
     </div>
 
     <!-- Application Logic Scripts -->
-    <script src="Arcots.js?v=8"></script>
-    <script src="TideCalculator.js?v=8"></script>
-    <script src="index.js?v=8"></script>
+    <script src="Arcots.js?v=9"></script>
+    <script src="TideCalculator.js?v=9"></script>
+    <script src="index.js?v=9"></script>
 </body>
 </html>

@@ -89,8 +89,8 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(refreshData, 300000); // refresh water data every 5 minutes
 
     // Load weather forecast asynchronously (does not block tide data)
-    loadArsoForecast();
-    setInterval(loadArsoForecast, 600000); // refresh weather forecast every 10 minutes
+    loadEcmwfForecast();
+    setInterval(loadEcmwfForecast, 600000); // refresh weather forecast every 10 minutes
 
     // Register Service Worker for PWA
     if ('serviceWorker' in navigator) {
@@ -348,56 +348,90 @@ function getWindArrowHtml(deg) {
     return `<i class="fa-solid fa-arrow-up wind-arrow" style="transform: rotate(${rotation}deg); font-size: 0.65rem; margin-right: 4px;" title="Smer vetra: ${Math.round(deg)}°"></i>`;
 }
 
-// Store MET Norway forecast raw data
-let metForecastData = null;
+// Store ECMWF forecast raw data
+let ecmwfForecastData = null;
 
-async function fetchMetNorwayForecast() {
+async function fetchEcmwfForecast() {
     try {
-        const url = 'https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=45.51&lon=13.59';
+        const url = 'https://api.open-meteo.com/v1/forecast?latitude=45.51&longitude=13.59&hourly=weather_code,temperature_2m,wind_speed_10m,precipitation,wind_direction_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,wind_speed_10m_max,wind_direction_10m_dominant&past_days=0&forecast_days=3&timezone=auto&models=ecmwf_ifs';
         const response = await fetch(url);
-        if (!response.ok) throw new Error("MET Norway response not ok");
+        if (!response.ok) throw new Error("ECMWF forecast response not ok");
         const json = await response.json();
         return json;
     } catch (e) {
-        console.error("Could not fetch MET Norway forecast:", e);
+        console.error("Could not fetch ECMWF weather forecast:", e);
         return null;
     }
 }
 
-function mapMetSymbolToFa(symbolCode) {
-    if (!symbolCode) return { icon: "fa-sun", color: "#f59e0b" };
-    const name = symbolCode.toLowerCase();
+function getWmoCodeDescSlo(wCode) {
+    const code = parseInt(wCode);
+    switch (code) {
+        case 0: return "Jasno";
+        case 1: return "Pretežno jasno";
+        case 2: return "Delno oblačno";
+        case 3: return "Oblačno";
+        case 45:
+        case 48: return "Megla";
+        case 51:
+        case 53:
+        case 55: return "Pršenje";
+        case 61:
+        case 63:
+        case 65: return "Dež";
+        case 71:
+        case 73:
+        case 75: return "Sneženje";
+        case 80:
+        case 81:
+        case 82: return "Plohe";
+        case 95:
+        case 96:
+        case 99: return "Nevihta";
+        default: return "Jasno";
+    }
+}
+
+function mapWmoCodeToFa(wCode, isNight = false) {
+    const code = parseInt(wCode);
+    if (isNaN(code)) return { icon: "fa-sun", color: "#f59e0b" };
     
-    // Storm, snow, rain, fog
-    if (name.includes("thunder") || name.includes("lightning") || name.includes("ts")) {
+    // Storm (95, 96, 99)
+    if (code >= 95) {
         return { icon: "fa-cloud-bolt", color: "#eab308" };
     }
-    if (name.includes("snow") || name.includes("sleet") || name.includes("snowflake")) {
+    // Snow (71, 73, 75, 77, 85, 86)
+    if ((code >= 71 && code <= 77) || code === 85 || code === 86) {
         return { icon: "fa-snowflake", color: "#38bdf8" };
     }
-    if (name.includes("heavyrain") || name.includes("rainshowers") || name.includes("ploh")) {
+    // Rain showers / Plohe (80, 81, 82)
+    if (code === 80 || code === 81 || code === 82) {
         return { icon: "fa-cloud-showers-heavy", color: "#0ea5e9" };
     }
-    if (name.includes("rain") || name.includes("drizzle")) {
+    // Rain (51, 53, 55, 56, 57, 61, 63, 65, 66, 67)
+    if ((code >= 51 && code <= 57) || (code >= 61 && code <= 67)) {
         return { icon: "fa-cloud-rain", color: "#0ea5e9" };
     }
-    if (name.includes("fog") || name.includes("mist")) {
+    // Fog (45, 48)
+    if (code === 45 || code === 48) {
         return { icon: "fa-smog", color: "#64748b" };
     }
-    
-    // Night icons (handled with CSS overrides in index.css for high contrast in light mode)
-    if (name.includes("night")) {
-        if (name.includes("cloudy") || name.includes("partly") || name.includes("fair")) {
+    // Overcast (3)
+    if (code === 3) {
+        return { icon: "fa-cloud", color: "#64748b" };
+    }
+    // Partly cloudy (2)
+    if (code === 2) {
+        if (isNight) {
             return { icon: "fa-cloud-moon", color: "#cbd5e1" };
         }
-        return { icon: "fa-moon", color: "#fef08a" };
-    }
-    
-    // Day icons / defaults
-    if (name.includes("cloudy") || name.includes("partly") || name.includes("fair")) {
         return { icon: "fa-cloud-sun", color: "#f59e0b" };
     }
-    if (name.includes("clear") || name.includes("sun")) {
+    // Clear / Mainly clear (0, 1)
+    if (code === 0 || code === 1) {
+        if (isNight) {
+            return { icon: "fa-moon", color: "#fef08a" };
+        }
         return { icon: "fa-sun", color: "#f59e0b" };
     }
     
@@ -482,7 +516,7 @@ function updateOpenMeteoFallbackCards() {
                 const windSpeed = daily.wind_speed_10m_max[idx];
                 const windDir = daily.wind_direction_10m_dominant[idx];
                 
-                const { icon, color } = mapMetSymbolToFa(wCode === 0 || wCode === 1 ? "clear" : (wCode === 2 ? "partCloudy" : "overcast"));
+                const { icon, color } = mapWmoCodeToFa(wCode, false);
                 const windArrow = getWindArrowHtml(windDir);
                 
                 const iconEl = document.getElementById(`${cardPrefix}-icon`);
@@ -511,81 +545,67 @@ function updateOpenMeteoFallbackCards() {
     }
 }
 
-function updateDailyCardFromMet(cardPrefix, dateOffset) {
-    if (!metForecastData) return false;
-    
-    const timeseries = metForecastData.properties?.timeseries;
-    if (!timeseries || timeseries.length === 0) return false;
-    
-    const targetDate = new Date();
-    targetDate.setDate(targetDate.getDate() + dateOffset);
-    
-    const dayItems = timeseries.filter(item => {
-        const d = new Date(item.time);
-        return d.getDate() === targetDate.getDate() &&
-               d.getMonth() === targetDate.getMonth() &&
-               d.getFullYear() === targetDate.getFullYear();
-    });
-    
-    if (dayItems.length === 0) return false;
-    
-    // Temperatures
-    let tempMin = 99;
-    let tempMax = -99;
-    dayItems.forEach(item => {
-        const t = item.data.instant.details.air_temperature;
-        if (t !== undefined) {
-            if (t < tempMin) tempMin = t;
-            if (t > tempMax) tempMax = t;
-        }
-    });
-    
-    // Representative item at 14:00 local time
-    let repItem = dayItems.find(item => {
-        const d = new Date(item.time);
-        return d.getHours() === 14;
-    });
-    if (!repItem) repItem = dayItems[Math.floor(dayItems.length / 2)]; // Fallback to middle of day
-    
-    const details = repItem.data.instant.details;
-    const windSpeedMs = details.wind_speed || 0;
-    const windSpeedKmh = windSpeedMs * 3.6;
-    const windDirDeg = details.wind_from_direction || 0;
-    const windDirStr = getWindDirectionSlo(windDirDeg);
-    const windArrow = getWindArrowHtml(windDirDeg);
-    
-    // Icon (prefer next_1_hours or next_6_hours or next_12_hours summary)
-    const symbolCode = repItem.data.next_1_hours?.summary?.symbol_code || 
-                       repItem.data.next_6_hours?.summary?.symbol_code || 
-                       repItem.data.next_12_hours?.summary?.symbol_code || "";
-                       
-    const { icon, color } = mapMetSymbolToFa(symbolCode);
-    
-    const iconEl = document.getElementById(`${cardPrefix}-icon`);
-    if (iconEl) {
-        iconEl.className = `fa-solid ${icon} forecast-icon`;
-        iconEl.style.color = color;
+async function fetchWaveHeight() {
+    try {
+        const url = 'https://marine-api.open-meteo.com/v1/marine?latitude=45.51&longitude=13.59&hourly=wave_height&timezone=auto';
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("Marine API response not ok");
+        const json = await response.json();
+        return json;
+    } catch (e) {
+        console.error("Could not fetch wave height:", e);
+        return null;
     }
-    
-    const tempEl = document.getElementById(`${cardPrefix}-temp`);
-    if (tempEl) {
-        tempEl.textContent = `${Math.round(tempMin)} / ${Math.round(tempMax)} °C`;
-    }
-    
-    const windEl = document.getElementById(`${cardPrefix}-wind`);
-    if (windEl) {
-        windEl.innerHTML = `${windArrow}${Math.round(windSpeedKmh)} km/h (${windDirStr})`;
-    }
-    
-    return true;
 }
 
-async function loadMetNorwayForecast() {
+async function loadEcmwfForecast() {
     try {
         const badge = document.getElementById('weather-source-badge');
         if (badge) badge.textContent = 'Nalaganje...';
         
-        metForecastData = await fetchMetNorwayForecast();
+        // Fetch ECMWF weather forecast and Marine wave height forecast in parallel
+        const [forecastJson, marineJson] = await Promise.all([
+            fetchEcmwfForecast(),
+            fetchWaveHeight()
+        ]);
+        
+        ecmwfForecastData = forecastJson;
+        
+        // Update wave height widget
+        if (marineJson && marineJson.hourly) {
+            try {
+                const now = new Date();
+                const timeMs = now.getTime();
+                let closestIdx = 0;
+                let minDiff = Infinity;
+                
+                for (let i = 0; i < marineJson.hourly.time.length; i++) {
+                    const itemTime = new Date(marineJson.hourly.time[i]);
+                    const diff = Math.abs(itemTime.getTime() - timeMs);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        closestIdx = i;
+                    }
+                }
+                
+                const wh = marineJson.hourly.wave_height[closestIdx];
+                const waveValEl = document.getElementById('wave-height-val');
+                if (waveValEl) {
+                    if (wh !== undefined && wh !== null) {
+                        waveValEl.textContent = `${wh.toFixed(2)} m`;
+                    } else {
+                        waveValEl.textContent = `-- m`;
+                    }
+                }
+            } catch (whErr) {
+                console.error("Error displaying wave height:", whErr);
+                const waveValEl = document.getElementById('wave-height-val');
+                if (waveValEl) waveValEl.textContent = `-- m`;
+            }
+        } else {
+            const waveValEl = document.getElementById('wave-height-val');
+            if (waveValEl) waveValEl.textContent = `-- m`;
+        }
         
         // Set dynamic Slovenian names of days for Tomorrow and Day After
         const daysSloNominative = ["Nedelja", "Ponedeljek", "Torek", "Sreda", "Četrtek", "Petek", "Sobota"];
@@ -604,34 +624,67 @@ async function loadMetNorwayForecast() {
         if (dayAfterNameEl) dayAfterNameEl.textContent = dayAfterDayName;
         
         let success = false;
-        if (metForecastData && metForecastData.properties?.timeseries) {
-            const successTomorrow = updateDailyCardFromMet('forecast-day-1', 1);
-            const successDayAfter = updateDailyCardFromMet('forecast-day-2', 2);
-            success = successTomorrow && successDayAfter;
+        if (ecmwfForecastData && ecmwfForecastData.daily) {
+            try {
+                const daily = ecmwfForecastData.daily;
+                
+                const updateCardFromEcmwf = (cardPrefix, idx) => {
+                    const tempMin = daily.temperature_2m_min[idx];
+                    const tempMax = daily.temperature_2m_max[idx];
+                    const windSpeed = daily.wind_speed_10m_max[idx];
+                    const windDir = daily.wind_direction_10m_dominant[idx];
+                    const wCode = daily.weather_code[idx];
+                    
+                    const { icon, color } = mapWmoCodeToFa(wCode, false);
+                    const windArrow = getWindArrowHtml(windDir);
+                    const windDirStr = getWindDirectionSlo(windDir);
+                    
+                    const iconEl = document.getElementById(`${cardPrefix}-icon`);
+                    if (iconEl) {
+                        iconEl.className = `fa-solid ${icon} forecast-icon`;
+                        iconEl.style.color = color;
+                    }
+                    
+                    const tempEl = document.getElementById(`${cardPrefix}-temp`);
+                    if (tempEl) {
+                        tempEl.textContent = `${Math.round(tempMin)} / ${Math.round(tempMax)} °C`;
+                    }
+                    
+                    const windEl = document.getElementById(`${cardPrefix}-wind`);
+                    if (windEl) {
+                        windEl.innerHTML = `${windArrow}${Math.round(windSpeed)} km/h (${windDirStr})`;
+                    }
+                    return true;
+                };
+                
+                const tomorrowSuccess = updateCardFromEcmwf('forecast-day-1', 1);
+                const dayAfterSuccess = updateCardFromEcmwf('forecast-day-2', 2);
+                success = tomorrowSuccess && dayAfterSuccess;
+            } catch (err) {
+                console.error("Error parsing ECMWF daily cards:", err);
+            }
         }
         
         if (success) {
-            if (badge) badge.textContent = 'Vir: YR.no (Portorož)';
+            if (badge) badge.textContent = 'Vir: ECMWF (Portorož)';
         } else {
             console.log("Using Open-Meteo daily forecast fallback");
             if (badge) badge.textContent = 'Vir: Open-Meteo';
             updateOpenMeteoFallbackCards();
         }
     } catch (e) {
-        console.error("Error loading MET Norway forecast:", e);
+        console.error("Error loading ECMWF forecast:", e);
         const badge = document.getElementById('weather-source-badge');
         if (badge) badge.textContent = 'Vir: Open-Meteo';
         updateOpenMeteoFallbackCards();
     }
 }
 
-function renderMet1hForecast() {
+function renderEcmwf1hForecast() {
     const container = document.getElementById('hourly-scroll-container');
-    if (!container || !metForecastData) return false;
+    if (!container || !ecmwfForecastData || !ecmwfForecastData.hourly) return false;
     
-    const timeseries = metForecastData.properties?.timeseries;
-    if (!timeseries || timeseries.length === 0) return false;
-    
+    const hourly = ecmwfForecastData.hourly;
     container.innerHTML = '';
     
     const now = new Date();
@@ -643,118 +696,96 @@ function renderMet1hForecast() {
     const endOfToday = new Date(now.getTime());
     endOfToday.setHours(23, 59, 59, 999);
     
-    const filtered = timeseries.filter(item => {
-        const itemDate = new Date(item.time);
-        return itemDate >= nextHour && itemDate <= endOfToday;
-    });
+    let renderedCount = 0;
     
-    if (filtered.length === 0) {
-        container.innerHTML = '<div style="font-size:0.8rem;color:var(--text-secondary);width:100%;text-align:center;padding:10px;">Podatki niso na voljo.</div>';
-        return true;
+    for (let i = 0; i < hourly.time.length; i++) {
+        const itemDate = new Date(hourly.time[i]);
+        if (itemDate >= nextHour && itemDate <= endOfToday) {
+            const timeStr = itemDate.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
+            const tempVal = hourly.temperature_2m[i];
+            const windSpeedKmh = hourly.wind_speed_10m[i];
+            const windDirDeg = hourly.wind_direction_10m[i];
+            const wCode = hourly.weather_code[i];
+            const rain = hourly.precipitation ? hourly.precipitation[i] : 0;
+            
+            const isNight = itemDate.getHours() < 6 || itemDate.getHours() > 20;
+            const { icon, color } = mapWmoCodeToFa(wCode, isNight);
+            const windArrow = getWindArrowHtml(windDirDeg);
+            
+            const itemEl = document.createElement('div');
+            itemEl.className = 'hourly-item';
+            itemEl.innerHTML = `
+                <span class="hourly-time">${timeStr}</span>
+                <i class="fa-solid ${icon} hourly-icon" style="color: ${color};"></i>
+                <span class="hourly-temp">${Math.round(tempVal)}°C</span>
+                <span class="hourly-wind">${windArrow}${Math.round(windSpeedKmh)} km/h</span>
+                <span class="hourly-rain">${rain > 0 ? rain.toFixed(1) + ' mm' : '0 mm'}</span>
+            `;
+            container.appendChild(itemEl);
+            renderedCount++;
+        }
     }
     
-    filtered.forEach(item => {
-        const itemDate = new Date(item.time);
-        const timeStr = itemDate.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
-        
-        const details = item.data.instant.details;
-        const tempVal = details.air_temperature;
-        const windSpeedKmh = (details.wind_speed || 0) * 3.6;
-        const windDirDeg = details.wind_from_direction || 0;
-        const windArrow = getWindArrowHtml(windDirDeg);
-        
-        const symbolCode = item.data.next_1_hours?.summary?.symbol_code || 
-                           item.data.next_6_hours?.summary?.symbol_code || "";
-        const rain = item.data.next_1_hours?.details?.precipitation_amount || 0;
-        
-        const { icon, color } = mapMetSymbolToFa(symbolCode);
-        
-        const itemEl = document.createElement('div');
-        itemEl.className = 'hourly-item';
-        itemEl.innerHTML = `
-            <span class="hourly-time">${timeStr}</span>
-            <i class="fa-solid ${icon} hourly-icon" style="color: ${color};"></i>
-            <span class="hourly-temp">${Math.round(tempVal)}°C</span>
-            <span class="hourly-wind">${windArrow}${Math.round(windSpeedKmh)} km/h</span>
-            <span class="hourly-rain">${rain > 0 ? rain.toFixed(1) + ' mm' : '0 mm'}</span>
-        `;
-        container.appendChild(itemEl);
-    });
-    
-    return true;
+    return renderedCount > 0;
 }
 
-function renderMet3hForecast(dayOffset) {
+function renderEcmwf3hForecast(dayOffset) {
     const container = document.getElementById('hourly-scroll-container');
-    if (!container || !metForecastData) return false;
+    if (!container || !ecmwfForecastData || !ecmwfForecastData.hourly) return false;
     
-    const timeseries = metForecastData.properties?.timeseries;
-    if (!timeseries || timeseries.length === 0) return false;
-    
+    const hourly = ecmwfForecastData.hourly;
     container.innerHTML = '';
     
     const targetDate = new Date();
     targetDate.setDate(targetDate.getDate() + dayOffset);
     
-    const dayItems = timeseries.filter(item => {
-        const d = new Date(item.time);
-        if (d.getDate() !== targetDate.getDate() ||
-            d.getMonth() !== targetDate.getMonth() ||
-            d.getFullYear() !== targetDate.getFullYear()) {
-            return false;
-        }
-        const hour = d.getHours();
-        return [2, 5, 8, 11, 14, 17, 20, 23].includes(hour);
-    });
+    let renderedCount = 0;
     
-    if (dayItems.length === 0) {
-        container.innerHTML = '<div style="font-size:0.8rem;color:var(--text-secondary);width:100%;text-align:center;padding:10px;">Podatki niso na voljo.</div>';
-        return true;
-    }
-    
-    dayItems.forEach(item => {
-        const itemDate = new Date(item.time);
-        
-        // Format time range: e.g. "11h - 14h"
-        const hour = itemDate.getHours();
-        const startHour = (hour - 3 + 24) % 24;
-        const timeRangeStr = `${startHour}h - ${hour}h`;
-        
-        const details = item.data.instant.details;
-        const tempVal = details.air_temperature;
-        const windSpeedKmh = (details.wind_speed || 0) * 3.6;
-        const windDirDeg = details.wind_from_direction || 0;
-        const windArrow = getWindArrowHtml(windDirDeg);
-        
-        const symbolCode = item.data.next_1_hours?.summary?.symbol_code || 
-                           item.data.next_6_hours?.summary?.symbol_code || "";
-                           
-        // Sum 3-hour precipitation ending at this hour
-        let rain = 0;
-        const timeMs = itemDate.getTime();
-        for (let offsetH = 1; offsetH <= 3; offsetH++) {
-            const checkTimeMs = timeMs - (offsetH * 3600 * 1000);
-            const checkItem = timeseries.find(tItem => new Date(tItem.time).getTime() === checkTimeMs);
-            if (checkItem && checkItem.data.next_1_hours?.details?.precipitation_amount !== undefined) {
-                rain += checkItem.data.next_1_hours.details.precipitation_amount;
+    for (let i = 0; i < hourly.time.length; i++) {
+        const itemDate = new Date(hourly.time[i]);
+        if (itemDate.getDate() === targetDate.getDate() &&
+            itemDate.getMonth() === targetDate.getMonth() &&
+            itemDate.getFullYear() === targetDate.getFullYear()) {
+            
+            const hour = itemDate.getHours();
+            if ([2, 5, 8, 11, 14, 17, 20, 23].includes(hour)) {
+                const startHour = (hour - 3 + 24) % 24;
+                const timeRangeStr = `${startHour}h - ${hour}h`;
+                
+                const tempVal = hourly.temperature_2m[i];
+                const windSpeedKmh = hourly.wind_speed_10m[i];
+                const windDirDeg = hourly.wind_direction_10m[i];
+                const wCode = hourly.weather_code[i];
+                
+                // Sum precipitation in the 3-hour period ending at this hour
+                let rain = 0;
+                for (let offsetH = 0; offsetH < 3; offsetH++) {
+                    const idx = i - offsetH;
+                    if (idx >= 0 && hourly.precipitation) {
+                        rain += hourly.precipitation[idx];
+                    }
+                }
+                
+                const isNight = hour < 6 || hour > 20;
+                const { icon, color } = mapWmoCodeToFa(wCode, isNight);
+                const windArrow = getWindArrowHtml(windDirDeg);
+                
+                const itemEl = document.createElement('div');
+                itemEl.className = 'hourly-item';
+                itemEl.innerHTML = `
+                    <span class="hourly-time" style="font-size: 0.62rem; font-weight: 700;">${timeRangeStr}</span>
+                    <i class="fa-solid ${icon} hourly-icon" style="color: ${color};"></i>
+                    <span class="hourly-temp">${Math.round(tempVal)}°C</span>
+                    <span class="hourly-wind">${windArrow}${Math.round(windSpeedKmh)} km/h</span>
+                    <span class="hourly-rain">${rain > 0 ? rain.toFixed(1) + ' mm' : '0 mm'}</span>
+                `;
+                container.appendChild(itemEl);
+                renderedCount++;
             }
         }
-        
-        const { icon, color } = mapMetSymbolToFa(symbolCode);
-        
-        const itemEl = document.createElement('div');
-        itemEl.className = 'hourly-item';
-        itemEl.innerHTML = `
-            <span class="hourly-time" style="font-size: 0.62rem; font-weight: 700;">${timeRangeStr}</span>
-            <i class="fa-solid ${icon} hourly-icon" style="color: ${color};"></i>
-            <span class="hourly-temp">${Math.round(tempVal)}°C</span>
-            <span class="hourly-wind">${windArrow}${Math.round(windSpeedKmh)} km/h</span>
-            <span class="hourly-rain">${rain > 0 ? rain.toFixed(1) + ' mm' : '0 mm'}</span>
-        `;
-        container.appendChild(itemEl);
-    });
+    }
     
-    return true;
+    return renderedCount > 0;
 }
 
 function toggleHourlyForecast(dayOffset) {
@@ -793,12 +824,12 @@ function toggleHourlyForecast(dayOffset) {
     }
     titleEl.textContent = dayTitleText;
     
-    // Attempt rendering using MET Norway (1h or 3h based on dayOffset)
+    // Attempt rendering using ECMWF (1h or 3h based on dayOffset)
     let forecastSuccess = false;
     if (dayOffset === 0) {
-        forecastSuccess = renderMet1hForecast();
+        forecastSuccess = renderEcmwf1hForecast();
     } else {
-        forecastSuccess = renderMet3hForecast(dayOffset);
+        forecastSuccess = renderEcmwf3hForecast(dayOffset);
     }
     
     if (!forecastSuccess) {
@@ -832,7 +863,7 @@ function toggleHourlyForecast(dayOffset) {
         } else {
             filtered.forEach(item => {
                 const timeStr = item.time.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
-                const { icon, color } = mapMetSymbolToFa(item.weatherCode === 0 || item.weatherCode === 1 ? "clear" : (item.weatherCode === 2 ? "partCloudy" : "overcast"));
+                const { icon, color } = mapWmoCodeToFa(item.weatherCode, item.time.getHours() < 6 || item.time.getHours() > 20);
                 const rain = item.rain || 0;
                 const windArrow = getWindArrowHtml(item.windDir);
                 
@@ -1001,76 +1032,69 @@ function calculateTideExtrema(currentTime) {
         document.getElementById('next-low-height').textContent = `Višina: ${relativeSign}${relativeVal.toFixed(0)} cm`;
     }
 }
-
-// Fetch Koper meteorological conditions from Bazdara Firebase DB
 async function loadWeather() {
     try {
-        const res = await fetch('https://bazdara-99a47.firebaseio.com/trenutno.json');
+        const url = 'https://api.open-meteo.com/v1/forecast?latitude=45.51&longitude=13.59&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,pressure_msl,wind_speed_10m,wind_direction_10m&daily=sunrise,sunset&timezone=auto';
+        const res = await fetch(url);
         if (res.ok) {
             const data = await res.json();
+            const current = data.current;
+            if (!current) return;
             
             // Air Temp
-            const tempVal = parseFloat(data.temp.zdaj);
+            const tempVal = parseFloat(current.temperature_2m);
             document.getElementById('air-temp-val').textContent = `${tempVal.toFixed(1)}°C`;
             
-            // Calculate Apparent Temperature (feels-like)
-            const rh = parseFloat(data.vlaga);
-            const ws = parseFloat(data.veter.zdaj);
+            // Apparent Temperature (feels-like)
+            const apparentTemp = parseFloat(current.apparent_temperature);
             const feelsLikeEl = document.getElementById('air-temp-feels-val');
-            
-            if (feelsLikeEl && !isNaN(tempVal) && !isNaN(rh) && !isNaN(ws)) {
-                const e = (rh / 100.0) * 6.105 * Math.exp((17.27 * tempVal) / (237.7 + tempVal));
-                const apparentTemp = tempVal + 0.33 * e - 0.7 * ws - 4.0;
+            if (feelsLikeEl && !isNaN(apparentTemp)) {
                 feelsLikeEl.textContent = `Obč. ${Math.round(apparentTemp)}°C`;
             } else if (feelsLikeEl) {
                 feelsLikeEl.textContent = `Obč. --`;
             }
             
-            // Weather Condition
-            document.getElementById('weather-desc-val').textContent = data.vreme.zdaj;
+            // Weather Condition Description
+            const wCode = current.weather_code;
+            const wDesc = getWmoCodeDescSlo(wCode);
+            document.getElementById('weather-desc-val').textContent = wDesc;
             
             // Weather icon mapping
             const iconBox = document.getElementById('weather-icon-box');
             const icon = document.getElementById('weather-icon');
             icon.className = 'fa-solid';
             
-            const wDesc = data.vreme.zdaj.toLowerCase();
-            if (wDesc.includes('jasno') || wDesc.includes('sonč')) {
-                icon.classList.add('fa-sun');
-                iconBox.style.background = 'rgba(245, 158, 11, 0.1)';
-                iconBox.style.borderColor = 'rgba(245, 158, 11, 0.25)';
-                icon.style.color = '#f59e0b';
-            } else if (wDesc.includes('oblač') || wDesc.includes('megl')) {
-                icon.classList.add('fa-cloud');
-                iconBox.style.background = 'rgba(148, 163, 184, 0.1)';
-                iconBox.style.borderColor = 'rgba(148, 163, 184, 0.25)';
-                icon.style.color = '#94a3b8';
-            } else if (wDesc.includes('dež') || wDesc.includes('ploh')) {
-                icon.classList.add('fa-cloud-showers-heavy');
-                iconBox.style.background = 'rgba(14, 165, 233, 0.1)';
-                iconBox.style.borderColor = 'rgba(14, 165, 233, 0.25)';
-                icon.style.color = '#0ea5e9';
-            } else {
-                icon.classList.add('fa-sun-cloud');
-                iconBox.style.background = 'rgba(245, 158, 11, 0.1)';
-                iconBox.style.borderColor = 'rgba(245, 158, 11, 0.25)';
-                icon.style.color = '#f59e0b';
-            }
+            // Determine if it is night for current icon
+            const now = new Date();
+            const isNight = now.getHours() < 6 || now.getHours() > 20;
+            const { icon: iconClass, color } = mapWmoCodeToFa(wCode, isNight);
+            
+            icon.classList.add(iconClass);
+            
+            // Set dynamic background color based on weather color token
+            iconBox.style.background = `rgba(${color === '#cbd5e1' || color === '#fef08a' ? '148, 163, 184' : '245, 158, 11'}, 0.1)`;
+            iconBox.style.borderColor = `rgba(${color === '#cbd5e1' || color === '#fef08a' ? '148, 163, 184' : '245, 158, 11'}, 0.25)`;
+            icon.style.color = color;
             
             // Pressure, Humidity, Wind
-            document.getElementById('air-pressure-val').textContent = `${data.tlak} hPa`;
-            document.getElementById('humidity-val').textContent = `${data.vlaga}%`;
-            const windSpeedKmh = parseFloat(data.veter.zdaj) * 3.6;
-            const windDirDeg = parseFloat(data.veter.smer);
+            document.getElementById('air-pressure-val').textContent = `${Math.round(current.pressure_msl)} hPa`;
+            document.getElementById('humidity-val').textContent = `${Math.round(current.relative_humidity_2m)}%`;
+            
+            const windSpeedKmh = parseFloat(current.wind_speed_10m);
+            const windDirDeg = parseFloat(current.wind_direction_10m);
             const windArrow = getWindArrowHtml(windDirDeg);
             document.getElementById('wind-speed-val').innerHTML = `${windArrow}${Math.round(windSpeedKmh)} km/h`;
             document.getElementById('wind-dir-val').textContent = getWindDirectionSlo(windDirDeg);
             
             // Sunrise/Sunset
-            document.getElementById('sunrise-time').textContent = data.soncni.vzhod;
-            document.getElementById('sunset-time').textContent = data.soncni.zahod;
-            
-
+            if (data.daily && data.daily.sunrise && data.daily.sunset) {
+                const parseTime = (isoStr) => {
+                    const d = new Date(isoStr);
+                    return d.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
+                };
+                document.getElementById('sunrise-time').textContent = parseTime(data.daily.sunrise[0]);
+                document.getElementById('sunset-time').textContent = parseTime(data.daily.sunset[0]);
+            }
         }
     } catch (e) {
         console.error("Error loading weather data:", e);

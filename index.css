@@ -1116,4 +1116,19 @@ body.light-theme #weather-source-badge {
     border-color: rgba(0, 0, 0, 0.02);
 }
 
+body.light-theme .fa-moon,
+body.light-theme .fa-cloud-moon {
+    color: #4f46e5 !important; /* Beautiful indigo/blue for high visibility of night icons in light mode */
+}
+
+.wind-arrow {
+    display: inline-block;
+    color: var(--text-secondary);
+    transition: transform 0.3s ease;
+}
+
+body.light-theme .wind-arrow {
+    color: #475569;
+}
+
 

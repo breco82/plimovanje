@@ -338,57 +338,67 @@ function getWindDirectionSlo(deg) {
     // Round to closest 45 degree sector (0-360)
     const idx = Math.round(deg / 45) % 8;
     return directions[idx];
-}async function fetchArsoJsonForecast() {
+}
+
+// Generate HTML for rotated wind arrow indicating direction the wind is blowing to
+function getWindArrowHtml(deg) {
+    if (deg === null || deg === undefined || isNaN(deg)) return "";
+    // Rotate to point in the direction the wind is blowing to (deg + 180)
+    const rotation = (parseFloat(deg) + 180) % 360;
+    return `<i class="fa-solid fa-arrow-up wind-arrow" style="transform: rotate(${rotation}deg); font-size: 0.65rem; margin-right: 4px;" title="Smer vetra: ${Math.round(deg)}°"></i>`;
+}
+
+// Store MET Norway forecast raw data
+let metForecastData = null;
+
+async function fetchMetNorwayForecast() {
     try {
-        const url = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://vreme.arso.gov.si/api/1.0/location/?location=Piran&format=json');
+        const url = 'https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=45.51&lon=13.59';
         const response = await fetch(url);
-        if (!response.ok) throw new Error("ARSO JSON response not ok");
+        if (!response.ok) throw new Error("MET Norway response not ok");
         const json = await response.json();
         return json;
     } catch (e) {
-        console.warn("Could not fetch ARSO JSON forecast, falling back to Open-Meteo:", e);
+        console.error("Could not fetch MET Norway forecast:", e);
         return null;
     }
 }
 
-function mapArsoIconToFa(nnIcon) {
-    if (!nnIcon) return { icon: "fa-sun", color: "#f59e0b" };
-    const name = nnIcon.toLowerCase();
+function mapMetSymbolToFa(symbolCode) {
+    if (!symbolCode) return { icon: "fa-sun", color: "#f59e0b" };
+    const name = symbolCode.toLowerCase();
     
-    // Padavine in nevihte (enake podnevi in ponoči)
-    if (name.includes("ts") || name.includes("bolt") || name.includes("thunder") || name.includes("neviht")) {
+    // Storm, snow, rain, fog
+    if (name.includes("thunder") || name.includes("lightning") || name.includes("ts")) {
         return { icon: "fa-cloud-bolt", color: "#eab308" };
     }
-    if (name.includes("sn") || name.includes("snow") || name.includes("flake") || name.includes("sneg")) {
+    if (name.includes("snow") || name.includes("sleet") || name.includes("snowflake")) {
         return { icon: "fa-snowflake", color: "#38bdf8" };
     }
-    if (name.includes("shra") || name.includes("shower") || name.includes("ploh")) {
+    if (name.includes("heavyrain") || name.includes("rainshowers") || name.includes("ploh")) {
         return { icon: "fa-cloud-showers-heavy", color: "#0ea5e9" };
     }
-    if (name.includes("ra") || name.includes("rain") || name.includes("dz") || name.includes("dež") || name.includes("ros")) {
+    if (name.includes("rain") || name.includes("drizzle")) {
         return { icon: "fa-cloud-rain", color: "#0ea5e9" };
     }
-    if (name.includes("fg") || name.includes("fog") || name.includes("smog") || name.includes("megl")) {
+    if (name.includes("fog") || name.includes("mist")) {
         return { icon: "fa-smog", color: "#64748b" };
     }
     
-    // Nočne ikone za jasno/oblačno
-    if (name.includes("night") || name.includes("noč")) {
-        if (name.includes("overcast") || name.includes("prevcloudy") || name.includes("oblač")) {
-            return { icon: "fa-cloud", color: "#64748b" };
-        }
-        if (name.includes("partcloudy") || name.includes("modcloudy") || name.includes("delno") || name.includes("zmerno") || name.includes("slightcloudy")) {
+    // Night icons (handled with CSS overrides in index.css for high contrast in light mode)
+    if (name.includes("night")) {
+        if (name.includes("cloudy") || name.includes("partly") || name.includes("fair")) {
             return { icon: "fa-cloud-moon", color: "#cbd5e1" };
         }
-        return { icon: "fa-moon", color: "#fef08a" }; // Jasna noč
+        return { icon: "fa-moon", color: "#fef08a" };
     }
     
-    // Dnevne ikone za jasno/oblačno
-    if (name.includes("overcast") || name.includes("prevcloudy") || name.includes("oblač")) {
-        return { icon: "fa-cloud", color: "#64748b" };
-    }
-    if (name.includes("partcloudy") || name.includes("modcloudy") || name.includes("delno") || name.includes("zmerno") || name.includes("slightcloudy")) {
+    // Day icons / defaults
+    if (name.includes("cloudy") || name.includes("partly") || name.includes("fair")) {
         return { icon: "fa-cloud-sun", color: "#f59e0b" };
+    }
+    if (name.includes("clear") || name.includes("sun")) {
+        return { icon: "fa-sun", color: "#f59e0b" };
     }
     
     return { icon: "fa-sun", color: "#f59e0b" };
@@ -396,8 +406,8 @@ function mapArsoIconToFa(nnIcon) {
 
 async function loadOpenMeteoPressures() {
     try {
-        // Fetch 31 days of history and 3 days of forecast from Open-Meteo (including hourly fields for our sliding pop-up details)
-        const url = 'https://api.open-meteo.com/v1/forecast?latitude=45.5469,42.6507&longitude=13.7294,18.0944&hourly=pressure_msl,weather_code,temperature_2m,wind_speed_10m,precipitation&daily=weather_code,temperature_2m_max,temperature_2m_min,wind_speed_10m_max,wind_direction_10m_dominant&past_days=31&forecast_days=3&timezone=auto';
+        // Fetch 31 days of history and 3 days of forecast from Open-Meteo
+        const url = 'https://api.open-meteo.com/v1/forecast?latitude=45.5469,42.6507&longitude=13.7294,18.0944&hourly=pressure_msl,weather_code,temperature_2m,wind_speed_10m,precipitation,wind_direction_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,wind_speed_10m_max,wind_direction_10m_dominant&past_days=31&forecast_days=3&timezone=auto';
         const response = await fetch(url);
         if (!response.ok) throw new Error("Meteo API response not ok");
         const json = await response.json();
@@ -432,6 +442,7 @@ async function loadOpenMeteoPressures() {
                         temp: hourly.temperature_2m[i],
                         weatherCode: hourly.weather_code[i],
                         windSpeed: hourly.wind_speed_10m[i],
+                        windDir: hourly.wind_direction_10m ? hourly.wind_direction_10m[i] : 0,
                         rain: hourly.precipitation ? hourly.precipitation[i] : 0
                     });
                 }
@@ -471,7 +482,8 @@ function updateOpenMeteoFallbackCards() {
                 const windSpeed = daily.wind_speed_10m_max[idx];
                 const windDir = daily.wind_direction_10m_dominant[idx];
                 
-                const { icon, color } = mapArsoIconToFa(wCode === 0 || wCode === 1 ? "clear" : (wCode === 2 ? "partCloudy" : "overcast"));
+                const { icon, color } = mapMetSymbolToFa(wCode === 0 || wCode === 1 ? "clear" : (wCode === 2 ? "partCloudy" : "overcast"));
+                const windArrow = getWindArrowHtml(windDir);
                 
                 const iconEl = document.getElementById(`${cardPrefix}-icon`);
                 if (iconEl) {
@@ -487,7 +499,7 @@ function updateOpenMeteoFallbackCards() {
                 const windEl = document.getElementById(`${cardPrefix}-wind`);
                 if (windEl) {
                     const windDirStr = getWindDirectionSlo(windDir);
-                    windEl.textContent = `${Math.round(windSpeed)} km/h (${windDirStr})`;
+                    windEl.innerHTML = `${windArrow}${Math.round(windSpeed)} km/h (${windDirStr})`;
                 }
             }
         };
@@ -499,12 +511,81 @@ function updateOpenMeteoFallbackCards() {
     }
 }
 
-async function loadArsoForecast() {
+function updateDailyCardFromMet(cardPrefix, dateOffset) {
+    if (!metForecastData) return false;
+    
+    const timeseries = metForecastData.properties?.timeseries;
+    if (!timeseries || timeseries.length === 0) return false;
+    
+    const targetDate = new Date();
+    targetDate.setDate(targetDate.getDate() + dateOffset);
+    
+    const dayItems = timeseries.filter(item => {
+        const d = new Date(item.time);
+        return d.getDate() === targetDate.getDate() &&
+               d.getMonth() === targetDate.getMonth() &&
+               d.getFullYear() === targetDate.getFullYear();
+    });
+    
+    if (dayItems.length === 0) return false;
+    
+    // Temperatures
+    let tempMin = 99;
+    let tempMax = -99;
+    dayItems.forEach(item => {
+        const t = item.data.instant.details.air_temperature;
+        if (t !== undefined) {
+            if (t < tempMin) tempMin = t;
+            if (t > tempMax) tempMax = t;
+        }
+    });
+    
+    // Representative item at 14:00 local time
+    let repItem = dayItems.find(item => {
+        const d = new Date(item.time);
+        return d.getHours() === 14;
+    });
+    if (!repItem) repItem = dayItems[Math.floor(dayItems.length / 2)]; // Fallback to middle of day
+    
+    const details = repItem.data.instant.details;
+    const windSpeedMs = details.wind_speed || 0;
+    const windSpeedKmh = windSpeedMs * 3.6;
+    const windDirDeg = details.wind_from_direction || 0;
+    const windDirStr = getWindDirectionSlo(windDirDeg);
+    const windArrow = getWindArrowHtml(windDirDeg);
+    
+    // Icon (prefer next_1_hours or next_6_hours or next_12_hours summary)
+    const symbolCode = repItem.data.next_1_hours?.summary?.symbol_code || 
+                       repItem.data.next_6_hours?.summary?.symbol_code || 
+                       repItem.data.next_12_hours?.summary?.symbol_code || "";
+                       
+    const { icon, color } = mapMetSymbolToFa(symbolCode);
+    
+    const iconEl = document.getElementById(`${cardPrefix}-icon`);
+    if (iconEl) {
+        iconEl.className = `fa-solid ${icon} forecast-icon`;
+        iconEl.style.color = color;
+    }
+    
+    const tempEl = document.getElementById(`${cardPrefix}-temp`);
+    if (tempEl) {
+        tempEl.textContent = `${Math.round(tempMin)} / ${Math.round(tempMax)} °C`;
+    }
+    
+    const windEl = document.getElementById(`${cardPrefix}-wind`);
+    if (windEl) {
+        windEl.innerHTML = `${windArrow}${Math.round(windSpeedKmh)} km/h (${windDirStr})`;
+    }
+    
+    return true;
+}
+
+async function loadMetNorwayForecast() {
     try {
         const badge = document.getElementById('weather-source-badge');
         if (badge) badge.textContent = 'Nalaganje...';
         
-        arsoForecastData = await fetchArsoJsonForecast();
+        metForecastData = await fetchMetNorwayForecast();
         
         // Set dynamic Slovenian names of days for Tomorrow and Day After
         const daysSloNominative = ["Nedelja", "Ponedeljek", "Torek", "Sreda", "Četrtek", "Petek", "Sobota"];
@@ -522,77 +603,34 @@ async function loadArsoForecast() {
         const dayAfterNameEl = document.getElementById('forecast-day-2-name');
         if (dayAfterNameEl) dayAfterNameEl.textContent = dayAfterDayName;
         
-        let arsoSuccess = false;
-        if (arsoForecastData && arsoForecastData.forecast24h?.features?.[0]?.properties?.days) {
-            try {
-                const days = arsoForecastData.forecast24h.features[0].properties.days;
-                
-                const updateCardFromArsoJson = (cardPrefix, dayData) => {
-                    if (!dayData || !dayData.timeline || dayData.timeline.length === 0) return false;
-                    const timeline = dayData.timeline[0];
-                    
-                    const tempMin = parseFloat(timeline.tnsyn);
-                    const tempMax = parseFloat(timeline.txsyn);
-                    const windSpeed = parseFloat(timeline.ff_val || "0");
-                    const windDir = timeline.dd_shortText || "";
-                    const iconName = timeline.clouds_icon_wwsyn_icon || "";
-                    
-                    const { icon, color } = mapArsoIconToFa(iconName);
-                    
-                    const iconEl = document.getElementById(`${cardPrefix}-icon`);
-                    if (iconEl) {
-                        iconEl.className = `fa-solid ${icon} forecast-icon`;
-                        iconEl.style.color = color;
-                    }
-                    
-                    const tempEl = document.getElementById(`${cardPrefix}-temp`);
-                    if (tempEl) {
-                        tempEl.textContent = `${Math.round(tempMin)} / ${Math.round(tempMax)} °C`;
-                    }
-                    
-                    const windEl = document.getElementById(`${cardPrefix}-wind`);
-                    if (windEl) {
-                        windEl.textContent = `${Math.round(windSpeed)} km/h (${windDir})`;
-                    }
-                    return true;
-                };
-                
-                const tomorrowSuccess = updateCardFromArsoJson('forecast-day-1', days[1]);
-                const dayAfterSuccess = updateCardFromArsoJson('forecast-day-2', days[2]);
-                arsoSuccess = tomorrowSuccess && dayAfterSuccess;
-                
-                if (arsoSuccess) {
-                    if (badge) badge.textContent = 'Vir: ARSO (Portorož)';
-                }
-            } catch (jsonErr) {
-                console.error("Error parsing ARSO daily forecast:", jsonErr);
-            }
+        let success = false;
+        if (metForecastData && metForecastData.properties?.timeseries) {
+            const successTomorrow = updateDailyCardFromMet('forecast-day-1', 1);
+            const successDayAfter = updateDailyCardFromMet('forecast-day-2', 2);
+            success = successTomorrow && successDayAfter;
         }
         
-        if (!arsoSuccess) {
+        if (success) {
+            if (badge) badge.textContent = 'Vir: YR.no (Portorož)';
+        } else {
             console.log("Using Open-Meteo daily forecast fallback");
             if (badge) badge.textContent = 'Vir: Open-Meteo';
             updateOpenMeteoFallbackCards();
-        } else {
-            console.log("Successfully loaded official ARSO Portorož JSON forecast.");
         }
     } catch (e) {
-        console.error("Error loading ARSO forecast:", e);
+        console.error("Error loading MET Norway forecast:", e);
         const badge = document.getElementById('weather-source-badge');
         if (badge) badge.textContent = 'Vir: Open-Meteo';
         updateOpenMeteoFallbackCards();
     }
 }
 
-function renderArso1hForecast() {
+function renderMet1hForecast() {
     const container = document.getElementById('hourly-scroll-container');
-    if (!container || !arsoForecastData) return false;
+    if (!container || !metForecastData) return false;
     
-    const days = arsoForecastData.forecast1h?.features?.[0]?.properties?.days;
-    if (!days || !days[0]) return false;
-    
-    const targetDay = days[0];
-    const timeline = targetDay.timeline || [];
+    const timeseries = metForecastData.properties?.timeseries;
+    if (!timeseries || timeseries.length === 0) return false;
     
     container.innerHTML = '';
     
@@ -602,9 +640,12 @@ function renderArso1hForecast() {
     nextHour.setMinutes(0, 0, 0);
     nextHour.setHours(nextHour.getHours() + 1);
     
-    const filtered = timeline.filter(item => {
-        const itemDate = new Date(item.valid);
-        return itemDate >= nextHour;
+    const endOfToday = new Date(now.getTime());
+    endOfToday.setHours(23, 59, 59, 999);
+    
+    const filtered = timeseries.filter(item => {
+        const itemDate = new Date(item.time);
+        return itemDate >= nextHour && itemDate <= endOfToday;
     });
     
     if (filtered.length === 0) {
@@ -613,15 +654,20 @@ function renderArso1hForecast() {
     }
     
     filtered.forEach(item => {
-        const itemDate = new Date(item.valid);
+        const itemDate = new Date(item.time);
         const timeStr = itemDate.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
         
-        const tempVal = parseFloat(item.t);
-        const windSpeed = parseFloat(item.ff_val || "0");
-        const iconName = item.clouds_icon_wwsyn_icon || "";
-        const rain = parseFloat(item.tp_acc || "0");
+        const details = item.data.instant.details;
+        const tempVal = details.air_temperature;
+        const windSpeedKmh = (details.wind_speed || 0) * 3.6;
+        const windDirDeg = details.wind_from_direction || 0;
+        const windArrow = getWindArrowHtml(windDirDeg);
         
-        const { icon, color } = mapArsoIconToFa(iconName);
+        const symbolCode = item.data.next_1_hours?.summary?.symbol_code || 
+                           item.data.next_6_hours?.summary?.symbol_code || "";
+        const rain = item.data.next_1_hours?.details?.precipitation_amount || 0;
+        
+        const { icon, color } = mapMetSymbolToFa(symbolCode);
         
         const itemEl = document.createElement('div');
         itemEl.className = 'hourly-item';
@@ -629,7 +675,7 @@ function renderArso1hForecast() {
             <span class="hourly-time">${timeStr}</span>
             <i class="fa-solid ${icon} hourly-icon" style="color: ${color};"></i>
             <span class="hourly-temp">${Math.round(tempVal)}°C</span>
-            <span class="hourly-wind">${Math.round(windSpeed)} km/h</span>
+            <span class="hourly-wind">${windArrow}${Math.round(windSpeedKmh)} km/h</span>
             <span class="hourly-rain">${rain > 0 ? rain.toFixed(1) + ' mm' : '0 mm'}</span>
         `;
         container.appendChild(itemEl);
@@ -638,37 +684,63 @@ function renderArso1hForecast() {
     return true;
 }
 
-function renderArso3hForecast(dayOffset) {
+function renderMet3hForecast(dayOffset) {
     const container = document.getElementById('hourly-scroll-container');
-    if (!container || !arsoForecastData) return false;
+    if (!container || !metForecastData) return false;
     
-    const days = arsoForecastData.forecast3h?.features?.[0]?.properties?.days;
-    if (!days || !days[dayOffset]) return false;
-    
-    const targetDay = days[dayOffset];
-    const timeline = targetDay.timeline || [];
+    const timeseries = metForecastData.properties?.timeseries;
+    if (!timeseries || timeseries.length === 0) return false;
     
     container.innerHTML = '';
     
-    if (timeline.length === 0) {
+    const targetDate = new Date();
+    targetDate.setDate(targetDate.getDate() + dayOffset);
+    
+    const dayItems = timeseries.filter(item => {
+        const d = new Date(item.time);
+        if (d.getDate() !== targetDate.getDate() ||
+            d.getMonth() !== targetDate.getMonth() ||
+            d.getFullYear() !== targetDate.getFullYear()) {
+            return false;
+        }
+        const hour = d.getHours();
+        return [2, 5, 8, 11, 14, 17, 20, 23].includes(hour);
+    });
+    
+    if (dayItems.length === 0) {
         container.innerHTML = '<div style="font-size:0.8rem;color:var(--text-secondary);width:100%;text-align:center;padding:10px;">Podatki niso na voljo.</div>';
         return true;
     }
     
-    timeline.forEach(item => {
-        const itemDate = new Date(item.valid);
+    dayItems.forEach(item => {
+        const itemDate = new Date(item.time);
         
         // Format time range: e.g. "11h - 14h"
         const hour = itemDate.getHours();
         const startHour = (hour - 3 + 24) % 24;
         const timeRangeStr = `${startHour}h - ${hour}h`;
         
-        const tempVal = parseFloat(item.t);
-        const windSpeed = parseFloat(item.ff_val || "0");
-        const iconName = item.clouds_icon_wwsyn_icon || "";
-        const rain = parseFloat(item.tp_acc || "0");
+        const details = item.data.instant.details;
+        const tempVal = details.air_temperature;
+        const windSpeedKmh = (details.wind_speed || 0) * 3.6;
+        const windDirDeg = details.wind_from_direction || 0;
+        const windArrow = getWindArrowHtml(windDirDeg);
         
-        const { icon, color } = mapArsoIconToFa(iconName);
+        const symbolCode = item.data.next_1_hours?.summary?.symbol_code || 
+                           item.data.next_6_hours?.summary?.symbol_code || "";
+                           
+        // Sum 3-hour precipitation ending at this hour
+        let rain = 0;
+        const timeMs = itemDate.getTime();
+        for (let offsetH = 1; offsetH <= 3; offsetH++) {
+            const checkTimeMs = timeMs - (offsetH * 3600 * 1000);
+            const checkItem = timeseries.find(tItem => new Date(tItem.time).getTime() === checkTimeMs);
+            if (checkItem && checkItem.data.next_1_hours?.details?.precipitation_amount !== undefined) {
+                rain += checkItem.data.next_1_hours.details.precipitation_amount;
+            }
+        }
+        
+        const { icon, color } = mapMetSymbolToFa(symbolCode);
         
         const itemEl = document.createElement('div');
         itemEl.className = 'hourly-item';
@@ -676,7 +748,7 @@ function renderArso3hForecast(dayOffset) {
             <span class="hourly-time" style="font-size: 0.62rem; font-weight: 700;">${timeRangeStr}</span>
             <i class="fa-solid ${icon} hourly-icon" style="color: ${color};"></i>
             <span class="hourly-temp">${Math.round(tempVal)}°C</span>
-            <span class="hourly-wind">${Math.round(windSpeed)} km/h</span>
+            <span class="hourly-wind">${windArrow}${Math.round(windSpeedKmh)} km/h</span>
             <span class="hourly-rain">${rain > 0 ? rain.toFixed(1) + ' mm' : '0 mm'}</span>
         `;
         container.appendChild(itemEl);
@@ -721,15 +793,15 @@ function toggleHourlyForecast(dayOffset) {
     }
     titleEl.textContent = dayTitleText;
     
-    // Attempt rendering using official ARSO JSON (1h or 3h based on dayOffset)
-    let arsoSuccess = false;
+    // Attempt rendering using MET Norway (1h or 3h based on dayOffset)
+    let forecastSuccess = false;
     if (dayOffset === 0) {
-        arsoSuccess = renderArso1hForecast();
+        forecastSuccess = renderMet1hForecast();
     } else {
-        arsoSuccess = renderArso3hForecast(dayOffset);
+        forecastSuccess = renderMet3hForecast(dayOffset);
     }
     
-    if (!arsoSuccess) {
+    if (!forecastSuccess) {
         console.log("Using Open-Meteo fallback for detail widget");
         let filtered = [];
         const now = new Date();
@@ -760,8 +832,9 @@ function toggleHourlyForecast(dayOffset) {
         } else {
             filtered.forEach(item => {
                 const timeStr = item.time.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
-                const { icon, color } = mapArsoIconToFa(item.weatherCode === 0 || item.weatherCode === 1 ? "clear" : (item.weatherCode === 2 ? "partCloudy" : "overcast"));
+                const { icon, color } = mapMetSymbolToFa(item.weatherCode === 0 || item.weatherCode === 1 ? "clear" : (item.weatherCode === 2 ? "partCloudy" : "overcast"));
                 const rain = item.rain || 0;
+                const windArrow = getWindArrowHtml(item.windDir);
                 
                 const itemEl = document.createElement('div');
                 itemEl.className = 'hourly-item';
@@ -769,7 +842,7 @@ function toggleHourlyForecast(dayOffset) {
                     <span class="hourly-time">${timeStr}</span>
                     <i class="fa-solid ${icon} hourly-icon" style="color: ${color};"></i>
                     <span class="hourly-temp">${Math.round(item.temp)}°C</span>
-                    <span class="hourly-wind">${Math.round(item.windSpeed)} km/h</span>
+                    <span class="hourly-wind">${windArrow}${Math.round(item.windSpeed)} km/h</span>
                     <span class="hourly-rain">${rain > 0 ? rain.toFixed(1) + ' mm' : '0 mm'}</span>
                 `;
                 container.appendChild(itemEl);
@@ -988,8 +1061,10 @@ async function loadWeather() {
             document.getElementById('air-pressure-val').textContent = `${data.tlak} hPa`;
             document.getElementById('humidity-val').textContent = `${data.vlaga}%`;
             const windSpeedKmh = parseFloat(data.veter.zdaj) * 3.6;
-            document.getElementById('wind-speed-val').textContent = `${Math.round(windSpeedKmh)} km/h`;
-            document.getElementById('wind-dir-val').textContent = getWindDirectionSlo(parseFloat(data.veter.smer));
+            const windDirDeg = parseFloat(data.veter.smer);
+            const windArrow = getWindArrowHtml(windDirDeg);
+            document.getElementById('wind-speed-val').innerHTML = `${windArrow}${Math.round(windSpeedKmh)} km/h`;
+            document.getElementById('wind-dir-val').textContent = getWindDirectionSlo(windDirDeg);
             
             // Sunrise/Sunset
             document.getElementById('sunrise-time').textContent = data.soncni.vzhod;

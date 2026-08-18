@@ -809,6 +809,68 @@ function toggleHourlyForecast(dayOffset) {
 
 window.toggleHourlyForecast = toggleHourlyForecast;
 
+async function loadOpenMeteoPressures() {
+    try {
+        // Fetch 31 days of history and 3 days of forecast from Open-Meteo (including sunrise/sunset)
+        const url = 'https://api.open-meteo.com/v1/forecast?latitude=45.5469,42.6507&longitude=13.7294,18.0944&hourly=pressure_msl,weather_code,temperature_2m,wind_speed_10m,precipitation,wind_direction_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,wind_speed_10m_max,wind_direction_10m_dominant,sunrise,sunset&past_days=31&forecast_days=3&timezone=auto';
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("Meteo API response not ok");
+        const json = await response.json();
+        
+        if (json && json[0] && json[0].hourly && json[1] && json[1].hourly) {
+            meteoForecastMap.clear();
+            const times = json[0].hourly.time;
+            const pressuresKoper = json[0].hourly.pressure_msl;
+            const pressuresDubrovnik = json[1].hourly.pressure_msl;
+            
+            for (let i = 0; i < times.length; i++) {
+                const date = new Date(times[i]);
+                const timeMs = date.getTime();
+                meteoForecastMap.set(timeMs, {
+                    pressureKoper: pressuresKoper[i],
+                    pressureDubrovnik: pressuresDubrovnik[i]
+                });
+            }
+            console.log(`Loaded ${meteoForecastMap.size} Open-Meteo dual-pressure weather points.`);
+            
+            // Parse and save hourly details for the slider widget (as fallback)
+            openMeteoHourlyForecast = [];
+            const hourly = json[0].hourly;
+            const startOfToday = new Date();
+            startOfToday.setHours(0, 0, 0, 0);
+            
+            for (let i = 0; i < hourly.time.length; i++) {
+                const date = new Date(hourly.time[i]);
+                if (date >= startOfToday) {
+                    openMeteoHourlyForecast.push({
+                        time: date,
+                        temp: hourly.temperature_2m[i],
+                        weatherCode: hourly.weather_code[i],
+                        windSpeed: hourly.wind_speed_10m[i],
+                        windDir: hourly.wind_direction_10m ? hourly.wind_direction_10m[i] : 0,
+                        rain: hourly.precipitation ? hourly.precipitation[i] : 0
+                    });
+                }
+            }
+            
+            // Save daily data for fallback cards
+            openMeteoDailyData = json[0].daily || null;
+            
+            // Update sunrise and sunset widgets
+            if (openMeteoDailyData && openMeteoDailyData.sunrise && openMeteoDailyData.sunset) {
+                const parseTime = (isoStr) => {
+                    const d = new Date(isoStr);
+                    return d.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
+                };
+                document.getElementById('sunrise-time').textContent = parseTime(openMeteoDailyData.sunrise[0]);
+                document.getElementById('sunset-time').textContent = parseTime(openMeteoDailyData.sunset[0]);
+            }
+        }
+    } catch (e) {
+        console.error("Error loading Open-Meteo pressure data:", e);
+    }
+}
+
 async function refreshData() {
     try {
         // Fetch Open-Meteo dual-pressure data (crucial for chart)

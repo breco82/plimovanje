@@ -349,19 +349,53 @@ function getWindArrowHtml(deg) {
     return `<i class="fa-solid fa-arrow-up wind-arrow" style="transform: rotate(${rotation}deg); font-size: 0.65rem; margin-right: 4px;" title="Smer vetra: ${Math.round(deg)}°"></i>`;
 }
 
-// Store ARSO forecast raw data
-async function fetchArsoForecastViaProxy() {
+// Store ARSO forecast raw data with proxy fallbacks (to bypass ad-blockers and CORS issues)
+async function fetchWeatherWithFallback(targetUrl) {
+    const directUrl = PROXY_URL + '?url=' + encodeURIComponent(targetUrl);
+    
+    // Try 1: Direct fetch to Google Apps Script (fastest)
     try {
-        const targetUrl = 'https://vreme.arso.gov.si/api/1.0/location/?location=Piran&format=json';
-        const url = PROXY_URL + '?url=' + encodeURIComponent(targetUrl);
-        const response = await fetch(url);
-        if (!response.ok) throw new Error("Proxy response not ok");
-        const json = await response.json();
-        return json;
+        const res = await fetch(directUrl);
+        if (res.ok) {
+            const json = await res.json();
+            if (json && !json.error) return json;
+        }
     } catch (e) {
-        console.error("Could not fetch ARSO forecast via proxy:", e);
-        return null;
+        console.warn("Direct Google Apps Script fetch failed, trying via CORS proxy fallback...", e);
     }
+    
+    // Try 2: Via corsproxy.io
+    try {
+        const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(directUrl)}`;
+        const res = await fetch(proxyUrl);
+        if (res.ok) {
+            const json = await res.json();
+            if (json && !json.error) return json;
+        }
+    } catch (e) {
+        console.warn("CORS proxy fallback failed, trying via AllOrigins fallback...", e);
+    }
+    
+    // Try 3: Via allorigins
+    try {
+        const backupUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(directUrl)}`;
+        const res = await fetch(backupUrl);
+        if (res.ok) {
+            const wrapper = await res.json();
+            if (wrapper && wrapper.contents) {
+                const json = JSON.parse(wrapper.contents);
+                if (json && !json.error) return json;
+            }
+        }
+    } catch (e) {
+        console.error("All weather proxy fallbacks failed", e);
+    }
+    return null;
+}
+
+async function fetchArsoForecastViaProxy() {
+    const targetUrl = 'https://vreme.arso.gov.si/api/1.0/location/?location=Piran&format=json';
+    return await fetchWeatherWithFallback(targetUrl);
 }
 
 async function fetchWaveHeight() {
@@ -1020,10 +1054,8 @@ function calculateTideExtrema(currentTime) {
 async function loadWeather() {
     try {
         const targetUrl = 'https://vreme.arso.gov.si/api/1.0/location/?location=Piran&format=json';
-        const url = PROXY_URL + '?url=' + encodeURIComponent(targetUrl);
-        const res = await fetch(url);
-        if (res.ok) {
-            const data = await res.json();
+        const data = await fetchWeatherWithFallback(targetUrl);
+        if (data) {
             const obs = data.observation;
             if (!obs || !obs.features || obs.features.length === 0) return;
             

@@ -349,6 +349,23 @@ function getWindArrowHtml(deg) {
     return `<i class="fa-solid fa-arrow-up wind-arrow" style="transform: rotate(${rotation}deg); font-size: 0.65rem; margin-right: 4px;" title="Smer vetra: ${Math.round(deg)}°"></i>`;
 }
 
+// Convert Slovenian wind direction abbreviation (S, SV, V, JV, J, JZ, Z, SZ) to degrees
+function getWindDegFromSlo(dirStr) {
+    if (!dirStr) return 0;
+    const str = dirStr.trim().toUpperCase();
+    switch (str) {
+        case "S": return 0;
+        case "SV": return 45;
+        case "V": return 90;
+        case "JV": return 135;
+        case "J": return 180;
+        case "JZ": return 225;
+        case "Z": return 270;
+        case "SZ": return 315;
+        default: return 0;
+    }
+}
+
 // Store ARSO forecast raw data with proxy fallbacks (to bypass ad-blockers and CORS issues)
 async function fetchWeatherWithFallback(targetUrl) {
     const directUrl = PROXY_URL + '?url=' + encodeURIComponent(targetUrl);

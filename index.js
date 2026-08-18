@@ -90,8 +90,8 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(refreshData, 300000); // refresh water data every 5 minutes
 
     // Load weather forecast asynchronously (does not block tide data)
-    loadEcmwfForecast();
-    setInterval(loadEcmwfForecast, 600000); // refresh weather forecast every 10 minutes
+    loadArsoForecast();
+    setInterval(loadArsoForecast, 600000); // refresh weather forecast every 10 minutes
 
     // Register Service Worker for PWA
     if ('serviceWorker' in navigator) {
@@ -806,8 +806,6 @@ function toggleHourlyForecast(dayOffset) {
     panel.style.display = 'block';
     container.scrollLeft = 0;
 }
-
-window.toggleHourlyForecast = toggleHourlyForecast;
 
 window.toggleHourlyForecast = toggleHourlyForecast;
 

@@ -602,8 +602,7 @@ async function loadArsoForecast() {
                     
                     const tempMin = parseFloat(timeline.tnsyn);
                     const tempMax = parseFloat(timeline.txsyn);
-                    const windSpeed = parseFloat(timeline.ff_val || "0"); // in m/s
-                    const windSpeedKmh = windSpeed * 3.6;
+                    const windSpeedKmh = parseFloat(timeline.ff_val || "0"); // already in km/h from ARSO API
                     const windDir = timeline.dd_shortText || "";
                     const windDirDeg = getWindDegFromSlo(windDir);
                     const windArrow = getWindArrowHtml(windDirDeg);
@@ -685,8 +684,7 @@ function renderArso1hForecast() {
         const timeStr = itemDate.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
         
         const tempVal = parseFloat(item.t);
-        const windSpeed = parseFloat(item.ff_val || "0"); // in m/s
-        const windSpeedKmh = windSpeed * 3.6;
+        const windSpeedKmh = parseFloat(item.ff_val || "0"); // already in km/h from ARSO API
         const windDir = item.dd_shortText || "";
         const windDirDeg = getWindDegFromSlo(windDir);
         const windArrow = getWindArrowHtml(windDirDeg);
@@ -736,8 +734,7 @@ function renderArso3hForecast(dayOffset) {
         const timeRangeStr = `${startHour}h - ${hour}h`;
         
         const tempVal = parseFloat(item.t);
-        const windSpeed = parseFloat(item.ff_val || "0"); // in m/s
-        const windSpeedKmh = windSpeed * 3.6;
+        const windSpeedKmh = parseFloat(item.ff_val || "0"); // already in km/h from ARSO API
         const windDir = item.dd_shortText || "";
         const windDirDeg = getWindDegFromSlo(windDir);
         const windArrow = getWindArrowHtml(windDirDeg);
@@ -1090,7 +1087,7 @@ async function loadWeather() {
             
             // Apparent Temperature (feels-like)
             const rh = parseFloat(current.rh);
-            const ws = parseFloat(current.ff_val || "0"); // in m/s
+            const ws = parseFloat(current.ff_val || "0") / 3.6; // Convert km/h to m/s for apparent temp formula
             const feelsLikeEl = document.getElementById('air-temp-feels-val');
             if (feelsLikeEl && !isNaN(tempVal) && !isNaN(rh) && !isNaN(ws)) {
                 const e = (rh / 100.0) * 6.105 * Math.exp((17.27 * tempVal) / (237.7 + tempVal));
@@ -1121,7 +1118,7 @@ async function loadWeather() {
             document.getElementById('air-pressure-val').textContent = `${Math.round(parseFloat(current.msl))} hPa`;
             document.getElementById('humidity-val').textContent = `${Math.round(parseFloat(current.rh))}%`;
             
-            const windSpeedKmh = parseFloat(current.ff_val || "0") * 3.6; // Convert m/s to km/h!
+            const windSpeedKmh = parseFloat(current.ff_val || "0"); // already in km/h from ARSO API
             const windDirStr = current.dd_shortText || "";
             const windDirDeg = getWindDegFromSlo(windDirStr);
             const windArrow = getWindArrowHtml(windDirDeg);

@@ -165,8 +165,8 @@
                 
                 <!-- Weather Tabs -->
                 <div class="weather-tabs" style="display: flex; gap: 4px; margin-bottom: 16px; background: var(--border-color); padding: 3px; border-radius: 6px; font-size: 0.75rem; max-width: 320px;">
-                    <button class="weather-tab-btn active" id="tab-vida" onclick="setWeatherSource('vida')" style="flex: 1; text-align: center; padding: 6px 0; border: none; background: transparent; border-radius: 4px; color: var(--text-secondary); cursor: pointer; font-weight: 600; transition: all 0.2s;">Boja Vida</button>
-                    <button class="weather-tab-btn" id="tab-portoroz" onclick="setWeatherSource('portoroz')" style="flex: 1; text-align: center; padding: 6px 0; border: none; background: transparent; border-radius: 4px; color: var(--text-secondary); cursor: pointer; font-weight: 600; transition: all 0.2s;">Letališče Portorož</button>
+                    <button class="weather-tab-btn active" id="tab-portoroz" onclick="setWeatherSource('portoroz')" style="flex: 1; text-align: center; padding: 6px 0; border: none; background: transparent; border-radius: 4px; color: var(--text-secondary); cursor: pointer; font-weight: 600; transition: all 0.2s;">Letališče Portorož</button>
+                    <button class="weather-tab-btn" id="tab-vida" onclick="setWeatherSource('vida')" style="flex: 1; text-align: center; padding: 6px 0; border: none; background: transparent; border-radius: 4px; color: var(--text-secondary); cursor: pointer; font-weight: 600; transition: all 0.2s;">Boja Vida</button>
                 </div>
 
                 <!-- Parameters list & Sun/Moon Grid -->
@@ -254,8 +254,8 @@
 
             <!-- Forecast Card (Third) -->
             <aside class="sidebar-card" style="width: 100%;">
-                <h2 style="margin: 0 0 12px 0; font-size: 1.1rem;">Trodnevna vremenska napoved (ARSO ALADIN)</h2>
-                <div class="forecast-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; width: 100%;">
+                <h2 style="margin: 0 0 12px 0; font-size: 1.1rem;">Vremenska napoved Piran (ARSO ALADIN)</h2>
+                <div class="forecast-container" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; width: 100%;">
                     <!-- Danes -->
                     <div class="forecast-day-card today-card" id="forecast-card-0" onclick="toggleHourlyForecast(0)">
                         <span class="forecast-day-name">Danes</span>
@@ -297,8 +297,8 @@
     </div>
 
     <!-- Application Logic Scripts -->
-    <script src="Arcots.js?v=30"></script>
-    <script src="TideCalculator.js?v=30"></script>
-    <script src="index.js?v=30"></script>
+    <script src="Arcots.js?v=31"></script>
+    <script src="TideCalculator.js?v=31"></script>
+    <script src="index.js?v=31"></script>
 </body>
 </html>

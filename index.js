@@ -70,6 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const relativeSign = relativeVal >= 0 ? '+' : '';
                 document.getElementById('current-level-val').textContent = `${relativeSign}${Math.round(relativeVal)}`;
                 document.getElementById('relative-level-val').textContent = `Absolutna gladina: ${Math.round(latest.level)} cm`;
+                updateWaterGauge(relativeVal);
                 
                 const timeStr = latest.time.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
                 const timeEl = document.getElementById('level-time-val');
@@ -1013,6 +1014,7 @@ async function refreshData() {
         const relativeSign = relativeVal >= 0 ? '+' : '';
         document.getElementById('current-level-val').textContent = `${relativeSign}${Math.round(relativeVal)}`;
         document.getElementById('relative-level-val').textContent = `Absolutna gladina: ${Math.round(latest.level)} cm`;
+        updateWaterGauge(relativeVal);
         
         const timeStr = latest.time.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
         const timeEl = document.getElementById('level-time-val');
@@ -1404,6 +1406,35 @@ function renderWeather() {
     } else {
         document.getElementById('wave-height-val').textContent = '-- m';
     }
+}
+
+function updateWaterGauge(relativeLevel) {
+    const fill = document.getElementById('water-gauge-fill');
+    const pointer = document.getElementById('water-gauge-pointer');
+    if (!fill || !pointer) return;
+    
+    // Scale range: -60 cm to +90 cm (150 cm total range)
+    const minScale = -60;
+    const maxScale = 90;
+    const pct = Math.max(0, Math.min(100, ((relativeLevel - minScale) / (maxScale - minScale)) * 100));
+    
+    // Set heights
+    fill.style.height = `${pct}%`;
+    pointer.style.bottom = `${pct}%`;
+    
+    // Set color based on limits:
+    // Green: -30 to +40
+    // Yellow: -40 to -30 and +40 to +50
+    // Red: below -40 or above +50
+    let color = '#22c55e'; // green
+    if ((relativeLevel >= -40 && relativeLevel < -30) || (relativeLevel > 40 && relativeLevel <= 50)) {
+        color = '#eab308'; // yellow
+    } else if (relativeLevel < -40 || relativeLevel > 50) {
+        color = '#ef4444'; // red
+    }
+    
+    fill.style.backgroundColor = color;
+    pointer.style.borderLeftColor = color;
 }
 
 // User-facing function to switch sources

@@ -170,7 +170,10 @@
             <aside class="sidebar-card" style="width: 100%;">
                 <div class="weather-header-row" style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 12px;">
                     <h2 style="margin: 0; font-size: 1.1rem;">Trenutne vremenske razmere</h2>
-                    <span id="weather-source-badge">Vir: --</span>
+                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
+                        <span id="weather-source-badge" style="font-size: 0.65rem; font-weight: 600; color: var(--text-secondary);">Vir: --</span>
+                        <span id="weather-time-badge" style="font-size: 0.6rem; color: var(--text-secondary); opacity: 0.85;">Meritev ob: --</span>
+                    </div>
                 </div>
                 
                 <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 16px; text-align: center; width: 100%;">
@@ -314,8 +317,8 @@
     </div>
 
     <!-- Application Logic Scripts -->
-    <script src="Arcots.js?v=32"></script>
-    <script src="TideCalculator.js?v=32"></script>
-    <script src="index.js?v=32"></script>
+    <script src="Arcots.js?v=33"></script>
+    <script src="TideCalculator.js?v=33"></script>
+    <script src="index.js?v=33"></script>
 </body>
 </html>

@@ -725,32 +725,43 @@ async function loadArsoForecast() {
     }
 }
 
-function renderArso1hForecast() {
+function renderArso1hForecast(dayOffset = 0) {
     const container = document.getElementById('hourly-scroll-container');
     if (!container || !arsoForecastData) return false;
     
     const days = arsoForecastData.forecast1h?.features?.[0]?.properties?.days;
-    if (!days || !days[0]) return false;
+    if (!days) return false;
     
-    const targetDay = days[0];
+    // Find target day matching local calendar date
+    const d = new Date();
+    d.setDate(d.getDate() + dayOffset);
+    const targetDateStr = d.getFullYear() + '-' + 
+                          String(d.getMonth() + 1).padStart(2, '0') + '-' + 
+                          String(d.getDate()).padStart(2, '0');
+    
+    const targetDay = days.find(item => item.date === targetDateStr);
+    if (!targetDay) return false;
+    
     const timeline = targetDay.timeline || [];
-    
     container.innerHTML = '';
     
-    const now = new Date();
-    // Filter out past hours: start with the NEXT full hour
-    const nextHour = new Date(now.getTime());
-    nextHour.setMinutes(0, 0, 0);
-    nextHour.setHours(nextHour.getHours() + 1);
+    let filtered = timeline;
     
-    const filtered = timeline.filter(item => {
-        const itemDate = new Date(item.valid);
-        return itemDate >= nextHour;
-    });
+    // Only filter out past hours if we are rendering "Danes" (dayOffset === 0)
+    if (dayOffset === 0) {
+        const now = new Date();
+        const nextHour = new Date(now.getTime());
+        nextHour.setMinutes(0, 0, 0);
+        nextHour.setHours(nextHour.getHours() + 1);
+        
+        filtered = timeline.filter(item => {
+            const itemDate = new Date(item.valid);
+            return itemDate >= nextHour;
+        });
+    }
     
     if (filtered.length === 0) {
-        container.innerHTML = '<div style="font-size:0.8rem;color:var(--text-secondary);width:100%;text-align:center;padding:10px;">Podatki niso na voljo.</div>';
-        return true;
+        return false; // Trigger fallback if timeline is empty
     }
     
     filtered.forEach(item => {
@@ -785,16 +796,23 @@ function renderArso3hForecast(dayOffset) {
     if (!container || !arsoForecastData) return false;
     
     const days = arsoForecastData.forecast3h?.features?.[0]?.properties?.days;
-    if (!days || !days[dayOffset]) return false;
+    if (!days) return false;
     
-    const targetDay = days[dayOffset];
+    // Find target day matching local calendar date
+    const d = new Date();
+    d.setDate(d.getDate() + dayOffset);
+    const targetDateStr = d.getFullYear() + '-' + 
+                          String(d.getMonth() + 1).padStart(2, '0') + '-' + 
+                          String(d.getDate()).padStart(2, '0');
+    
+    const targetDay = days.find(item => item.date === targetDateStr);
+    if (!targetDay) return false;
+    
     const timeline = targetDay.timeline || [];
-    
     container.innerHTML = '';
     
     if (timeline.length === 0) {
-        container.innerHTML = '<div style="font-size:0.8rem;color:var(--text-secondary);width:100%;text-align:center;padding:10px;">Podatki niso na voljo.</div>';
-        return true;
+        return false; // Trigger fallback if timeline is empty
     }
     
     timeline.forEach(item => {
@@ -864,10 +882,10 @@ function toggleHourlyForecast(dayOffset) {
     }
     titleEl.textContent = dayTitleText;
     
-    // Attempt rendering using official ARSO JSON (1h or 3h based on dayOffset)
+    // Attempt rendering using official ARSO JSON (1h for today/tomorrow, 3h for day after tomorrow)
     let arsoSuccess = false;
-    if (dayOffset === 0) {
-        arsoSuccess = renderArso1hForecast();
+    if (dayOffset === 0 || dayOffset === 1) {
+        arsoSuccess = renderArso1hForecast(dayOffset);
     } else {
         arsoSuccess = renderArso3hForecast(dayOffset);
     }
@@ -923,6 +941,9 @@ function toggleHourlyForecast(dayOffset) {
     
     panel.style.display = 'block';
     container.scrollLeft = 0;
+    setTimeout(() => {
+        panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 100);
 }
 
 window.toggleHourlyForecast = toggleHourlyForecast;
@@ -980,8 +1001,21 @@ async function loadOpenMeteoPressures() {
                     const d = new Date(isoStr);
                     return d.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
                 };
-                document.getElementById('sunrise-time').textContent = parseTime(openMeteoDailyData.sunrise[0]);
-                document.getElementById('sunset-time').textContent = parseTime(openMeteoDailyData.sunset[0]);
+                
+                // Open-Meteo daily arrays contain past_days=31, so today is at index 31.
+                // We find it dynamically by matching today's date string in local time.
+                const localToday = new Date();
+                const todayStr = localToday.getFullYear() + '-' + 
+                                 String(localToday.getMonth() + 1).padStart(2, '0') + '-' + 
+                                 String(localToday.getDate()).padStart(2, '0');
+                
+                let todayIdx = openMeteoDailyData.time ? openMeteoDailyData.time.indexOf(todayStr) : -1;
+                if (todayIdx === -1) {
+                    todayIdx = 31; // Fallback to index 31
+                }
+                
+                document.getElementById('sunrise-time').textContent = parseTime(openMeteoDailyData.sunrise[todayIdx]);
+                document.getElementById('sunset-time').textContent = parseTime(openMeteoDailyData.sunset[todayIdx]);
             }
         }
     } catch (e) {
@@ -1222,6 +1256,7 @@ async function parseArsoAmsXml(stationId, cb) {
         if (!desc) {
             desc = "jasno";
         }
+        const validTime = getValue("valid") || "";
 
         return {
             description: desc,
@@ -1233,7 +1268,8 @@ async function parseArsoAmsXml(stationId, cb) {
             windSpeedKmh: windSpeedKmh,
             windDirDeg: windDirDeg,
             windDirStr: windDirStr,
-            iconName: iconName
+            iconName: iconName,
+            validTime: validTime
         };
     } catch (e) {
         console.error(`Error parsing ARSO AMS XML for ${stationId}:`, e);
@@ -1348,6 +1384,22 @@ function renderWeather() {
     }
 
     const data = (activeWeatherSource === 'vida') ? weatherDataVida : weatherDataPortoroz;
+    
+    const timeBadge = document.getElementById('weather-time-badge');
+    if (timeBadge) {
+        if (data && data.validTime) {
+            try {
+                const mDate = new Date(data.validTime);
+                const timeStr = mDate.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
+                timeBadge.textContent = `Meritev ob: ${timeStr}`;
+                timeBadge.style.display = 'inline';
+            } catch (e) {
+                timeBadge.style.display = 'none';
+            }
+        } else {
+            timeBadge.style.display = 'none';
+        }
+    }
     
     if (!data) {
         document.getElementById('weather-desc-val').textContent = 'Nalaganje podatkov...';

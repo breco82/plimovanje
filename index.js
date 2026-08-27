@@ -1365,6 +1365,26 @@ async function loadWeather() {
     renderWeather();
 }
 
+function parseArsoXmlDate(dateStr) {
+    if (!dateStr) return null;
+    const parts = dateStr.trim().split(/\s+/);
+    if (parts.length >= 2) {
+        const dateParts = parts[0].split('.');
+        const timeParts = parts[1].split(':');
+        if (dateParts.length === 3 && timeParts.length >= 2) {
+            const day = parseInt(dateParts[0], 10);
+            const month = parseInt(dateParts[1], 10) - 1;
+            const year = parseInt(dateParts[2], 10);
+            const hour = parseInt(timeParts[0], 10);
+            const minute = parseInt(timeParts[1], 10);
+            const second = timeParts.length > 2 ? parseInt(timeParts[2], 10) : 0;
+            return new Date(year, month, day, hour, minute, second);
+        }
+    }
+    const d = new Date(dateStr);
+    return isNaN(d.getTime()) ? null : d;
+}
+
 function renderWeather() {
     const badge = document.getElementById('weather-source-badge');
     
@@ -1388,12 +1408,12 @@ function renderWeather() {
     const timeBadge = document.getElementById('weather-time-badge');
     if (timeBadge) {
         if (data && data.validTime) {
-            try {
-                const mDate = new Date(data.validTime);
+            const mDate = parseArsoXmlDate(data.validTime);
+            if (mDate) {
                 const timeStr = mDate.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
                 timeBadge.textContent = `Meritev ob: ${timeStr}`;
                 timeBadge.style.display = 'inline';
-            } catch (e) {
+            } else {
                 timeBadge.style.display = 'none';
             }
         } else {

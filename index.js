@@ -245,16 +245,16 @@ async function loadWaterData(arsoPeriod) {
         console.log(`Local API endpoint failed for period ${arsoPeriod}, trying direct public CORS proxy...`, e);
     }
     
-    // Attempt 2: Public CORS proxy (corsproxy.io)
+    // Attempt 2: Google Apps Script CORS proxy (completely free and reliable, hosted on Google Cloud)
     try {
-        const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(publicUrl)}`;
+        const proxyUrl = `${PROXY_URL}?url=${encodeURIComponent(publicUrl)}`;
         const res = await fetch(proxyUrl);
         if (res.ok) {
             const html = await res.text();
             return parseArsoHtml(html);
         }
     } catch (e) {
-        console.log(`Primary CORS proxy failed for period ${arsoPeriod}, trying secondary backup proxy...`, e);
+        console.log(`Google Apps Script proxy failed for period ${arsoPeriod}, trying backup proxy...`, e);
     }
     
     // Attempt 3: Backup CORS proxy (allorigins.win)

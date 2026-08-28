@@ -998,7 +998,9 @@ async function loadOpenMeteoPressures() {
             // Update sunrise and sunset widgets
             if (openMeteoDailyData && openMeteoDailyData.sunrise && openMeteoDailyData.sunset) {
                 const parseTime = (isoStr) => {
+                    if (!isoStr) return "--:--";
                     const d = new Date(isoStr);
+                    if (isNaN(d.getTime())) return "--:--";
                     return d.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
                 };
                 
@@ -1010,8 +1012,9 @@ async function loadOpenMeteoPressures() {
                                  String(localToday.getDate()).padStart(2, '0');
                 
                 let todayIdx = openMeteoDailyData.time ? openMeteoDailyData.time.indexOf(todayStr) : -1;
-                if (todayIdx === -1) {
-                    todayIdx = 31; // Fallback to index 31
+                if (todayIdx === -1 || todayIdx >= openMeteoDailyData.sunrise.length) {
+                    todayIdx = Math.min(31, openMeteoDailyData.sunrise.length - 1);
+                    if (todayIdx < 0) todayIdx = 0;
                 }
                 
                 document.getElementById('sunrise-time').textContent = parseTime(openMeteoDailyData.sunrise[todayIdx]);
@@ -1031,7 +1034,11 @@ async function refreshData() {
         if (!actualData || actualData.length === 0) throw new Error("Data empty");
         
         // Wait for pressure data to finish loading (very fast)
-        await meteoPromise;
+        try {
+            await meteoPromise;
+        } catch (meteoErr) {
+            console.error("Failed to load meteo pressures, continuing:", meteoErr);
+        }
         
         // Cache data to LocalStorage
         try {
@@ -1868,10 +1875,10 @@ function updateMoonPhase() {
     let iconTransform = "";
     
     if (ageDays < 1.0 || ageDays >= 28.53) {
-        phaseName = "Mlaj";
+        phaseName = "Prazna Luna - Mlaj";
         iconClass = "fa-regular fa-circle";
     } else if (ageDays < 6.38) {
-        phaseName = "Rastoča luna";
+        phaseName = "Rastoča Luna";
         iconClass = "fa-solid fa-moon";
         iconTransform = "scaleX(-1)"; // Mirror to point like '('
     } else if (ageDays < 8.38) {
@@ -1879,20 +1886,20 @@ function updateMoonPhase() {
         iconClass = "fa-solid fa-circle-half-stroke";
         iconTransform = "rotate(180deg)"; // Make it right-side filled
     } else if (ageDays < 13.76) {
-        phaseName = "Rastoča luna";
+        phaseName = "Rastoča Luna";
         iconClass = "fa-solid fa-circle-half-stroke";
         iconTransform = "rotate(180deg)"; // Make it right-side filled
     } else if (ageDays < 15.76) {
-        phaseName = "Ščip";
+        phaseName = "Polna Luna - Ščip";
         iconClass = "fa-solid fa-circle";
     } else if (ageDays < 21.15) {
-        phaseName = "Padajoča luna";
+        phaseName = "Padajoča Luna";
         iconClass = "fa-solid fa-circle-half-stroke"; // Left-side filled by default
     } else if (ageDays < 23.15) {
         phaseName = "Zadnji krajec";
         iconClass = "fa-solid fa-circle-half-stroke"; // Left-side filled by default
     } else {
-        phaseName = "Padajoča luna";
+        phaseName = "Padajoča Luna";
         iconClass = "fa-solid fa-moon"; // Points like ')' by default
     }
     
@@ -1911,19 +1918,51 @@ function updateMoonPhase() {
         coeffDesc = `Srednje plimovanje (${coeff}%)`;
     }
     
+    // Calculate the next principal phase (Mlaj, Prvi krajec, Ščip, Zadnji krajec)
+    const cycleProgress = ((diffMs % synodicMonth) + synodicMonth) % synodicMonth / synodicMonth;
+    const principalPhases = [
+        { ratio: 0.0, name: "Prazna Luna - Mlaj", prefix: "Naslednja prazna luna - mlaj" },
+        { ratio: 0.25, name: "Prvi krajec", prefix: "Naslednji prvi krajec" },
+        { ratio: 0.5, name: "Polna Luna - Ščip", prefix: "Naslednja polna luna - ščip" },
+        { ratio: 0.75, name: "Zadnji krajec", prefix: "Naslednji zadnji krajec" }
+    ];
+    
+    let nextP = null;
+    let minDiff = 2.0;
+    
+    for (const p of principalPhases) {
+        let diff = p.ratio - cycleProgress;
+        if (diff <= 0.001) diff += 1.0; // Wrap around if we are past or at the phase
+        if (diff < minDiff) {
+            minDiff = diff;
+            nextP = p;
+        }
+    }
+    
+    const timeToNextMs = minDiff * synodicMonth;
+    const nextPhaseDate = new Date(now.getTime() + timeToNextMs);
+    
+    const dayStr = String(nextPhaseDate.getDate()).padStart(2, '0') + '.' + 
+                   String(nextPhaseDate.getMonth() + 1).padStart(2, '0') + '.' + 
+                   nextPhaseDate.getFullYear();
+    const hourStr = nextPhaseDate.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
+    const nextPhaseText = `${nextP.prefix} ${dayStr} ob ${hourStr}`;
+    
     // Update UI elements
     const phaseNameEl = document.getElementById('moon-phase-name');
     const coeffValEl = document.getElementById('moon-coeff-val');
+    const nextPhaseEl = document.getElementById('moon-next-phase');
     
     if (phaseNameEl) phaseNameEl.textContent = phaseName;
     if (coeffValEl) coeffValEl.innerHTML = `Tip: ${coeffDesc}`;
+    if (nextPhaseEl) nextPhaseEl.textContent = nextPhaseText;
     
     const moonIcon = document.getElementById('moon-icon');
     if (moonIcon) {
         moonIcon.className = iconClass;
         moonIcon.style.display = "inline-block"; // Force display inline-block to allow transforms
         moonIcon.style.transform = iconTransform;
-        if (phaseName === "Ščip") {
+        if (phaseName === "Polna Luna - Ščip") {
             moonIcon.style.textShadow = "0 0 10px #fff";
             moonIcon.style.color = "#fff";
         } else {

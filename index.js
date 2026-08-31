@@ -86,6 +86,28 @@ function getWaveHeightForTime(targetDate) {
     return closestHeight;
 }
 
+// Helper: Maximum wave height for a calendar day (for daily forecast cards)
+function getDayMaxWaveHeight(targetDate) {
+    if (!targetDate || marineHourlyWaves.size === 0) return currentMarineWaveHeight;
+    const targetY = targetDate.getFullYear();
+    const targetM = targetDate.getMonth();
+    const targetD = targetDate.getDate();
+    
+    let maxH = 0;
+    let found = false;
+    
+    for (const [timeMs, height] of marineHourlyWaves.entries()) {
+        const d = new Date(timeMs);
+        if (d.getFullYear() === targetY && d.getMonth() === targetM && d.getDate() === targetD) {
+            found = true;
+            if (height > maxH) {
+                maxH = height;
+            }
+        }
+    }
+    return found ? maxH : currentMarineWaveHeight;
+}
+
 // Helper: Beaufort scale & Slovene descriptions
 function getBeaufortInfo(windSpeedKmh) {
     const kmh = parseFloat(windSpeedKmh) || 0;
@@ -682,6 +704,16 @@ function updateOpenMeteoFallbackCards() {
             }
         };
         
+        const idxToday = getIndexForDate(0);
+        if (idxToday !== -1) {
+            const wCode = daily.weather_code[idxToday];
+            const weatherName = wCode === 0 || wCode === 1 ? "clear" : (wCode === 2 ? "partCloudy" : "overcast");
+            const todayIconBox = document.getElementById('weather-icon-box');
+            if (todayIconBox) {
+                todayIconBox.innerHTML = getWeatherIconHtml(weatherName, "1.8rem");
+            }
+        }
+        
         updateForecastCard('forecast-day-1', idxTomorrow);
         updateForecastCard('forecast-day-2', idxDayAfter);
     } catch (fallbackErr) {
@@ -747,20 +779,29 @@ async function loadArsoForecast() {
         const dayAfterNameEl = document.getElementById('forecast-day-2-name');
         if (dayAfterNameEl) dayAfterNameEl.textContent = dayAfterDayName;
         
-        // Update wave badges in daily cards
+        // Update wave badges in daily cards (use maximum representative wave height for that day)
         const waveCard0 = document.getElementById('forecast-day-0-wave');
-        if (waveCard0) waveCard0.innerHTML = getWaveIconHtml(getWaveHeightForTime(new Date()));
+        if (waveCard0) waveCard0.innerHTML = getWaveIconHtml(getDayMaxWaveHeight(new Date()));
         
         const waveCard1 = document.getElementById('forecast-day-1-wave');
-        if (waveCard1) waveCard1.innerHTML = getWaveIconHtml(getWaveHeightForTime(dateTomorrow));
+        if (waveCard1) waveCard1.innerHTML = getWaveIconHtml(getDayMaxWaveHeight(dateTomorrow));
         
         const waveCard2 = document.getElementById('forecast-day-2-wave');
-        if (waveCard2) waveCard2.innerHTML = getWaveIconHtml(getWaveHeightForTime(dateDayAfter));
+        if (waveCard2) waveCard2.innerHTML = getWaveIconHtml(getDayMaxWaveHeight(dateDayAfter));
         
         let success = false;
         if (arsoForecastData && arsoForecastData.forecast24h?.features?.[0]?.properties?.days) {
             try {
                 const days = arsoForecastData.forecast24h.features[0].properties.days;
+                
+                // Update Danes forecast icon from official ARSO forecast24h
+                if (days[0] && days[0].timeline && days[0].timeline.length > 0) {
+                    const todayForecastIcon = days[0].timeline[0].clouds_icon_wwsyn_icon || "";
+                    const todayIconBox = document.getElementById('weather-icon-box');
+                    if (todayIconBox && todayForecastIcon) {
+                        todayIconBox.innerHTML = getWeatherIconHtml(todayForecastIcon, "1.8rem");
+                    }
+                }
                 
                 const updateCardFromArsoJson = (cardPrefix, dayData) => {
                     if (!dayData || !dayData.timeline || dayData.timeline.length === 0) return false;
@@ -848,9 +889,23 @@ function renderArso1hForecast(dayOffset = 0) {
     
     filtered.forEach(item => {
         const itemDate = new Date(item.valid);
-        const isTomorrow = itemDate.getDate() !== now.getDate();
+        
+        const nowDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const itemDay = new Date(itemDate.getFullYear(), itemDate.getMonth(), itemDate.getDate());
+        const dayDiff = Math.round((itemDay.getTime() - nowDay.getTime()) / 86400000);
+        
+        let dayPrefix = "";
+        if (dayDiff === 1) {
+            dayPrefix = `<span style="font-size:0.55rem;opacity:0.85;display:block;line-height:1;">Jutri</span>`;
+        } else if (dayDiff === 2) {
+            dayPrefix = `<span style="font-size:0.55rem;opacity:0.85;display:block;line-height:1;">Pojutr.</span>`;
+        } else if (dayDiff > 2) {
+            const daysSloShort = ["Ned", "Pon", "Tor", "Sre", "Čet", "Pet", "Sob"];
+            dayPrefix = `<span style="font-size:0.55rem;opacity:0.85;display:block;line-height:1;">${daysSloShort[itemDate.getDay()]}</span>`;
+        }
+        
         const timeFormatted = itemDate.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
-        const timeDisplay = isTomorrow ? `<span style="font-size:0.55rem;opacity:0.85;display:block;line-height:1;">Jutri</span>${timeFormatted}` : timeFormatted;
+        const timeDisplay = dayPrefix ? `${dayPrefix}${timeFormatted}` : timeFormatted;
         
         const tempVal = parseFloat(item.t);
         const windSpeedKmh = parseFloat(item.ff_val || "0"); // already in km/h from ARSO API
@@ -903,11 +958,7 @@ function renderArso3hForecast(dayOffset) {
     
     timeline.forEach(item => {
         const itemDate = new Date(item.valid);
-        
-        // Format time range: e.g. "11h - 14h"
-        const hour = itemDate.getHours();
-        const startHour = (hour - 3 + 24) % 24;
-        const timeRangeStr = `${startHour}h - ${hour}h`;
+        const timeStr = itemDate.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
         
         const tempVal = parseFloat(item.t);
         const windSpeedKmh = parseFloat(item.ff_val || "0"); // already in km/h from ARSO API
@@ -921,7 +972,7 @@ function renderArso3hForecast(dayOffset) {
         const itemEl = document.createElement('div');
         itemEl.className = 'hourly-item';
         itemEl.innerHTML = `
-            <span class="hourly-time" style="font-size: 0.62rem; font-weight: 700;">${timeRangeStr}</span>
+            <span class="hourly-time" style="font-size: 0.68rem; font-weight: 700;">${timeStr}</span>
             ${getWeatherIconHtml(iconName, "1.2rem")}
             <span class="hourly-temp">${Math.round(tempVal)}°C</span>
             <span class="hourly-wind">${windArrow}${Math.round(windSpeedKmh)} km/h</span>
@@ -1553,20 +1604,19 @@ function renderWeather() {
     document.getElementById('air-temp-feels-val').textContent = feelsLikeStr;
     document.getElementById('current-feels-like-val').textContent = feelsLikeStr;
 
-    // Icon mapping for Danes forecast card
-    const iconBox = document.getElementById('weather-icon-box');
-    if (iconBox) {
-        iconBox.innerHTML = getWeatherIconHtml(weatherIconName, "1.8rem");
-    }
-
     // Pressure & Humidity
     document.getElementById('air-pressure-val').textContent = `${Math.round(data.pressure)} hPa`;
     document.getElementById('humidity-val').textContent = `${Math.round(data.humidity)}%`;
 
-    // Wind (dual units + Beaufort scale display)
+    // Wind (dual units + Beaufort scale display in separate line)
     const windArrow = getWindArrowHtml(data.windDirDeg);
     const bft = getBeaufortInfo(data.windSpeedKmh);
-    document.getElementById('wind-speed-val').innerHTML = `${windArrow}${data.windSpeedMs.toFixed(1)} m/s (${Math.round(data.windSpeedKmh)} km/h · ${bft.bft} Bft - ${bft.text})`;
+    document.getElementById('wind-speed-val').innerHTML = `
+        <div style="text-align: right; line-height: 1.25;">
+            <div>${windArrow}${data.windSpeedMs.toFixed(1)} m/s (${Math.round(data.windSpeedKmh)} km/h)</div>
+            <div style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 500; margin-top: 2px;">${bft.bft} Bft - ${bft.text}</div>
+        </div>
+    `;
     document.getElementById('wind-dir-val').textContent = data.windDirStr ? data.windDirStr : `${Math.round(data.windDirDeg)}°`;
 
     // Waves (Vida measurement or Open-Meteo model fallback for Portorož)

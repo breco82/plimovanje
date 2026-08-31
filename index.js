@@ -15,12 +15,107 @@ let activeWeatherSource = 'portoroz'; // 'vida' or 'portoroz'
 let weatherDataVida = null;       // Cached weather data from Vida buoy
 let weatherDataPortoroz = null;   // Cached weather data from Portorož Airport
 let currentMarineWaveHeight = null; // Cached current wave height from Open-Meteo forecast
+let marineHourlyWaves = new Map();  // Map of timestamp (ms) -> wave height (m)
 const PROXY_URL = 'https://script.google.com/macros/s/AKfycbxoILNm85D58iHTxfbE8J_BawhREfiv2q1bUHSED_GqPT2LhUSyFxXjSXEx4cyk9eT8/exec';
 
 // Datum offset constant (Srednja gladina morja / Mean sea level - SVS2010 reference datum is 217.0 cm above gauge zero)
 const MEAN_SEA_LEVEL_OFFSET = 217.0;
 
 let deferredPrompt = null;
+
+// Helper: Official Douglas Sea Scale
+function getDouglasSeaState(heightM) {
+    if (heightM === null || heightM === undefined || isNaN(heightM)) {
+        return { code: null, text: "--", label: "--" };
+    }
+    const h = parseFloat(heightM);
+    if (h < 0.05) return { code: 0, text: "Mirno morje", label: "Mirno (0)" };
+    if (h <= 0.1) return { code: 1, text: "Mirno z zibanjem", label: "Mirno z zibanjem (1)" };
+    if (h <= 0.5) return { code: 2, text: "Rahlo vzvalovano", label: "Rahlo vzvalovano (2)" };
+    if (h <= 1.25) return { code: 3, text: "Zmerno vzvalovano", label: "Zmerno vzvalovano (3)" };
+    if (h <= 2.5) return { code: 4, text: "Vzvalovano morje", label: "Vzvalovano (4)" };
+    if (h <= 4.0) return { code: 5, text: "Močno vzvalovano", label: "Močno vzvalovano (5)" };
+    if (h <= 6.0) return { code: 6, text: "Zelo močno vzvalovano", label: "Zelo močno vzvalovano (6)" };
+    if (h <= 9.0) return { code: 7, text: "Visoko valovito", label: "Visoko valovito (7)" };
+    if (h <= 14.0) return { code: 8, text: "Zelo visoko valovito", label: "Zelo visoko valovito (8)" };
+    return { code: 9, text: "Izjemno valovito", label: "Izjemno valovito (9)" };
+}
+
+// Helper: Option A wave symbol and height
+function getWaveIconHtml(heightM) {
+    if (heightM === null || heightM === undefined || isNaN(heightM)) {
+        return `<span style="color:var(--text-secondary);font-size:0.7rem;">--</span>`;
+    }
+    const h = parseFloat(heightM);
+    if (h <= 0.5) {
+        return `<span style="display:inline-flex;align-items:center;gap:3px;color:#22c55e;font-size:0.72rem;font-weight:600;" title="Rahlo vzvalovano (${h.toFixed(2)} m)">
+            <svg style="width:13px;height:8px;fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;" viewBox="0 0 24 12"><path d="M0 6 Q6 0, 12 6 T24 6"/></svg>
+            ${h.toFixed(1)}m
+        </span>`;
+    } else if (h <= 1.25) {
+        return `<span style="display:inline-flex;align-items:center;gap:3px;color:#38bdf8;font-size:0.72rem;font-weight:600;" title="Zmerno vzvalovano (${h.toFixed(2)} m)">
+            <svg style="width:13px;height:10px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;" viewBox="0 0 24 16"><path d="M0 5 Q6 0, 12 5 T24 5 M0 11 Q6 6, 12 11 T24 11"/></svg>
+            ${h.toFixed(1)}m
+        </span>`;
+    } else if (h <= 2.5) {
+        return `<span style="display:inline-flex;align-items:center;gap:3px;color:#f59e0b;font-size:0.72rem;font-weight:600;" title="Vzvalovano (${h.toFixed(2)} m)">
+            <svg style="width:13px;height:12px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;" viewBox="0 0 24 20"><path d="M0 4 Q6 -2, 12 4 T24 4 M0 10 Q6 4, 12 10 T24 10 M0 16 Q6 10, 12 16 T24 16"/></svg>
+            ${h.toFixed(1)}m
+        </span>`;
+    } else {
+        return `<span style="display:inline-flex;align-items:center;gap:3px;color:#ef4444;font-size:0.72rem;font-weight:700;" title="Močno valovito (${h.toFixed(2)} m)">
+            <i class="fa-solid fa-triangle-exclamation" style="font-size:0.65rem;"></i>
+            ${h.toFixed(1)}m
+        </span>`;
+    }
+}
+
+// Helper: Closest hourly wave height lookup
+function getWaveHeightForTime(targetDate) {
+    if (!targetDate || marineHourlyWaves.size === 0) return currentMarineWaveHeight;
+    const targetMs = targetDate.getTime();
+    let closestHeight = currentMarineWaveHeight;
+    let minDiff = Infinity;
+    for (const [timeMs, height] of marineHourlyWaves.entries()) {
+        const diff = Math.abs(timeMs - targetMs);
+        if (diff < minDiff) {
+            minDiff = diff;
+            closestHeight = height;
+        }
+    }
+    return closestHeight;
+}
+
+// Helper: Beaufort scale & Slovene descriptions
+function getBeaufortInfo(windSpeedKmh) {
+    const kmh = parseFloat(windSpeedKmh) || 0;
+    if (kmh < 1) return { bft: 0, text: "tišina" };
+    if (kmh <= 5) return { bft: 1, text: "lahka sapa" };
+    if (kmh <= 11) return { bft: 2, text: "lahek vetrič" };
+    if (kmh <= 19) return { bft: 3, text: "zmeren veter" };
+    if (kmh <= 28) return { bft: 4, text: "zmerno močan veter" };
+    if (kmh <= 38) return { bft: 5, text: "svež veter" };
+    if (kmh <= 49) return { bft: 6, text: "močan veter" };
+    if (kmh <= 61) return { bft: 7, text: "zelo močan veter" };
+    if (kmh <= 74) return { bft: 8, text: "vihar" };
+    if (kmh <= 88) return { bft: 9, text: "močan vihar" };
+    if (kmh <= 102) return { bft: 10, text: "polni vihar" };
+    if (kmh <= 117) return { bft: 11, text: "orkanski vihar" };
+    return { bft: 12, text: "orkan" };
+}
+
+// Toggle Sea Scale Legend
+function toggleSeaLegend() {
+    const content = document.getElementById('sea-legend-content');
+    const arrow = document.getElementById('sea-legend-arrow');
+    if (!content) return;
+    const isHidden = content.style.display === 'none';
+    content.style.display = isHidden ? 'block' : 'none';
+    if (arrow) {
+        arrow.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+    }
+}
+window.toggleSeaLegend = toggleSeaLegend;
 
 document.addEventListener('DOMContentLoaded', () => {
     // Configure Highcharts to use local timezone globally
@@ -55,36 +150,12 @@ document.addEventListener('DOMContentLoaded', () => {
     updateMoonPhase();
     setInterval(updateMoonPhase, 3600000); // refresh moon phase every hour
 
-    // Instant load from localStorage
-    try {
-        const cachedData = localStorage.getItem('arso_actual_data');
-        if (cachedData) {
-            actualData = JSON.parse(cachedData).map(item => ({
-                time: new Date(item.time),
-                temp: item.temp,
-                level: item.level
-            }));
-            if (actualData.length > 0) {
-                const latest = actualData[actualData.length - 1];
-                const relativeVal = latest.level - MEAN_SEA_LEVEL_OFFSET;
-                const relativeSign = relativeVal >= 0 ? '+' : '';
-                document.getElementById('current-level-val').textContent = `${relativeSign}${Math.round(relativeVal)}`;
-                document.getElementById('relative-level-val').textContent = `Absolutna gladina: ${Math.round(latest.level)} cm`;
-                updateWaterGauge(relativeVal);
-                
-                const timeStr = latest.time.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
-                const timeEl = document.getElementById('level-time-val');
-                if (timeEl) timeEl.textContent = `Meritev ARSO ob: ${timeStr}`;
-                
-                document.getElementById('current-temp-val').textContent = latest.temp.toFixed(1);
-                
-                calculateTideExtrema(latest.time);
-                renderChart();
-            }
-        }
-    } catch (e) {
-        console.warn("Failed to load cached data:", e);
-    }
+    // Reset initial UI displays to loading placeholders
+    document.getElementById('current-level-val').textContent = "--";
+    document.getElementById('relative-level-val').textContent = "Absolutna gladina: Nalaganje...";
+    document.getElementById('current-temp-val').textContent = "--";
+    const timeEl = document.getElementById('level-time-val');
+    if (timeEl) timeEl.textContent = "Nalaganje meritev...";
     
     // Load meteorological data from Bazdara Firebase (CORS-free)
     loadWeather();
@@ -235,14 +306,18 @@ async function loadWaterData(arsoPeriod) {
     const localUrl = `/api/data?period=${arsoPeriod}&cb=${cb}`;
     const publicUrl = `https://www.arso.gov.si/vode/podatki/amp/H9350_t_${arsoPeriod}.html?cb=${cb}`;
     
-    // Attempt 1: Local server proxy
-    try {
-        const res = await fetch(localUrl);
-        if (res.ok) {
-            return await res.json();
+    const isLocalhost = (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
+    
+    // Attempt 1: Local server proxy (ONLY if running on localhost to avoid 3s network timeout on live web)
+    if (isLocalhost) {
+        try {
+            const res = await fetch(localUrl);
+            if (res.ok) {
+                return await res.json();
+            }
+        } catch (e) {
+            console.log(`Local API endpoint failed for period ${arsoPeriod}, trying direct public CORS proxy...`, e);
         }
-    } catch (e) {
-        console.log(`Local API endpoint failed for period ${arsoPeriod}, trying direct public CORS proxy...`, e);
     }
     
     // Attempt 2: Google Apps Script CORS proxy (completely free and reliable, hosted on Google Cloud)
@@ -627,9 +702,10 @@ async function loadArsoForecast() {
         
         arsoForecastData = forecastJson;
         
-        // Update wave height data
+        // Update wave height data & populate hourly marine map
         if (marineJson && marineJson.hourly) {
             try {
+                marineHourlyWaves.clear();
                 const now = new Date();
                 const timeMs = now.getTime();
                 let closestIdx = 0;
@@ -637,6 +713,9 @@ async function loadArsoForecast() {
                 
                 for (let i = 0; i < marineJson.hourly.time.length; i++) {
                     const itemTime = new Date(marineJson.hourly.time[i]);
+                    const whVal = marineJson.hourly.wave_height[i];
+                    marineHourlyWaves.set(itemTime.getTime(), whVal);
+                    
                     const diff = Math.abs(itemTime.getTime() - timeMs);
                     if (diff < minDiff) {
                         minDiff = diff;
@@ -667,6 +746,16 @@ async function loadArsoForecast() {
         
         const dayAfterNameEl = document.getElementById('forecast-day-2-name');
         if (dayAfterNameEl) dayAfterNameEl.textContent = dayAfterDayName;
+        
+        // Update wave badges in daily cards
+        const waveCard0 = document.getElementById('forecast-day-0-wave');
+        if (waveCard0) waveCard0.innerHTML = getWaveIconHtml(getWaveHeightForTime(new Date()));
+        
+        const waveCard1 = document.getElementById('forecast-day-1-wave');
+        if (waveCard1) waveCard1.innerHTML = getWaveIconHtml(getWaveHeightForTime(dateTomorrow));
+        
+        const waveCard2 = document.getElementById('forecast-day-2-wave');
+        if (waveCard2) waveCard2.innerHTML = getWaveIconHtml(getWaveHeightForTime(dateDayAfter));
         
         let success = false;
         if (arsoForecastData && arsoForecastData.forecast24h?.features?.[0]?.properties?.days) {
@@ -730,43 +819,38 @@ function renderArso1hForecast(dayOffset = 0) {
     if (!container || !arsoForecastData) return false;
     
     const days = arsoForecastData.forecast1h?.features?.[0]?.properties?.days;
-    if (!days) return false;
+    if (!days || days.length === 0) return false;
     
-    // Find target day matching local calendar date
-    const d = new Date();
-    d.setDate(d.getDate() + dayOffset);
-    const targetDateStr = d.getFullYear() + '-' + 
-                          String(d.getMonth() + 1).padStart(2, '0') + '-' + 
-                          String(d.getDate()).padStart(2, '0');
-    
-    const targetDay = days.find(item => item.date === targetDateStr);
-    if (!targetDay) return false;
-    
-    const timeline = targetDay.timeline || [];
     container.innerHTML = '';
     
-    let filtered = timeline;
+    // For "Danes" (dayOffset === 0), combine all available 1-hour timeline points across all available days (up to ~36h)
+    let allTimeline = [];
+    days.forEach(dayItem => {
+        if (dayItem.timeline && Array.isArray(dayItem.timeline)) {
+            allTimeline = allTimeline.concat(dayItem.timeline);
+        }
+    });
     
-    // Only filter out past hours if we are rendering "Danes" (dayOffset === 0)
-    if (dayOffset === 0) {
-        const now = new Date();
-        const nextHour = new Date(now.getTime());
-        nextHour.setMinutes(0, 0, 0);
-        nextHour.setHours(nextHour.getHours() + 1);
-        
-        filtered = timeline.filter(item => {
-            const itemDate = new Date(item.valid);
-            return itemDate >= nextHour;
-        });
-    }
+    const now = new Date();
+    const nextHour = new Date(now.getTime());
+    nextHour.setMinutes(0, 0, 0);
+    nextHour.setHours(nextHour.getHours() + 1);
+    
+    // Filter out past hours of today, keep all upcoming hours
+    const filtered = allTimeline.filter(item => {
+        const itemDate = new Date(item.valid);
+        return itemDate >= nextHour;
+    });
     
     if (filtered.length === 0) {
-        return false; // Trigger fallback if timeline is empty
+        return false;
     }
     
     filtered.forEach(item => {
         const itemDate = new Date(item.valid);
-        const timeStr = itemDate.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
+        const isTomorrow = itemDate.getDate() !== now.getDate();
+        const timeFormatted = itemDate.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
+        const timeDisplay = isTomorrow ? `<span style="font-size:0.55rem;opacity:0.85;display:block;line-height:1;">Jutri</span>${timeFormatted}` : timeFormatted;
         
         const tempVal = parseFloat(item.t);
         const windSpeedKmh = parseFloat(item.ff_val || "0"); // already in km/h from ARSO API
@@ -775,15 +859,17 @@ function renderArso1hForecast(dayOffset = 0) {
         const windArrow = getWindArrowHtml(windDirDeg);
         const iconName = item.clouds_icon_wwsyn_icon || "";
         const rain = parseFloat(item.tp_acc || "0");
+        const waveH = getWaveHeightForTime(itemDate);
         
         const itemEl = document.createElement('div');
         itemEl.className = 'hourly-item';
         itemEl.innerHTML = `
-            <span class="hourly-time">${timeStr}</span>
+            <span class="hourly-time">${timeDisplay}</span>
             ${getWeatherIconHtml(iconName, "1.2rem")}
             <span class="hourly-temp">${Math.round(tempVal)}°C</span>
             <span class="hourly-wind">${windArrow}${Math.round(windSpeedKmh)} km/h</span>
             <span class="hourly-rain">${rain > 0 ? rain.toFixed(1) + ' mm' : '0 mm'}</span>
+            <div style="margin-top:2px;">${getWaveIconHtml(waveH)}</div>
         `;
         container.appendChild(itemEl);
     });
@@ -812,7 +898,7 @@ function renderArso3hForecast(dayOffset) {
     container.innerHTML = '';
     
     if (timeline.length === 0) {
-        return false; // Trigger fallback if timeline is empty
+        return false;
     }
     
     timeline.forEach(item => {
@@ -830,6 +916,7 @@ function renderArso3hForecast(dayOffset) {
         const windArrow = getWindArrowHtml(windDirDeg);
         const iconName = item.clouds_icon_wwsyn_icon || "";
         const rain = parseFloat(item.tp_acc || "0");
+        const waveH = getWaveHeightForTime(itemDate);
         
         const itemEl = document.createElement('div');
         itemEl.className = 'hourly-item';
@@ -839,6 +926,7 @@ function renderArso3hForecast(dayOffset) {
             <span class="hourly-temp">${Math.round(tempVal)}°C</span>
             <span class="hourly-wind">${windArrow}${Math.round(windSpeedKmh)} km/h</span>
             <span class="hourly-rain">${rain > 0 ? rain.toFixed(1) + ' mm' : '0 mm'}</span>
+            <div style="margin-top:2px;">${getWaveIconHtml(waveH)}</div>
         `;
         container.appendChild(itemEl);
     });
@@ -882,10 +970,10 @@ function toggleHourlyForecast(dayOffset) {
     }
     titleEl.textContent = dayTitleText;
     
-    // Attempt rendering using official ARSO JSON (1h for today/tomorrow, 3h for day after tomorrow)
+    // Attempt rendering using official ARSO JSON (1h for today 36h continuous track, 3h for tomorrow and day after tomorrow)
     let arsoSuccess = false;
-    if (dayOffset === 0 || dayOffset === 1) {
-        arsoSuccess = renderArso1hForecast(dayOffset);
+    if (dayOffset === 0) {
+        arsoSuccess = renderArso1hForecast(0);
     } else {
         arsoSuccess = renderArso3hForecast(dayOffset);
     }
@@ -1355,9 +1443,10 @@ async function loadWeather() {
         try {
             const amsData = await parseArsoAmsXml("PORTOROZ_SECOVLJE", cb);
             if (amsData) {
+                const portorozWave = weatherDataVida ? weatherDataVida.waveHeight : currentMarineWaveHeight;
                 weatherDataPortoroz = {
                     ...amsData,
-                    waveHeight: null
+                    waveHeight: portorozWave
                 };
             }
         } catch (e) {
@@ -1474,14 +1563,20 @@ function renderWeather() {
     document.getElementById('air-pressure-val').textContent = `${Math.round(data.pressure)} hPa`;
     document.getElementById('humidity-val').textContent = `${Math.round(data.humidity)}%`;
 
-    // Wind (dual units display)
+    // Wind (dual units + Beaufort scale display)
     const windArrow = getWindArrowHtml(data.windDirDeg);
-    document.getElementById('wind-speed-val').innerHTML = `${windArrow}${data.windSpeedMs.toFixed(1)} m/s (${Math.round(data.windSpeedKmh)} km/h)`;
+    const bft = getBeaufortInfo(data.windSpeedKmh);
+    document.getElementById('wind-speed-val').innerHTML = `${windArrow}${data.windSpeedMs.toFixed(1)} m/s (${Math.round(data.windSpeedKmh)} km/h · ${bft.bft} Bft - ${bft.text})`;
     document.getElementById('wind-dir-val').textContent = data.windDirStr ? data.windDirStr : `${Math.round(data.windDirDeg)}°`;
 
-    // Waves (only available on Vida)
-    if (data.waveHeight !== null && data.waveHeight !== undefined) {
-        document.getElementById('wave-height-val').textContent = `${data.waveHeight.toFixed(2)} m`;
+    // Waves (Vida measurement or Open-Meteo model fallback for Portorož)
+    let waveH = data.waveHeight;
+    if ((waveH === null || waveH === undefined) && activeWeatherSource === 'portoroz') {
+        waveH = weatherDataVida ? weatherDataVida.waveHeight : currentMarineWaveHeight;
+    }
+    if (waveH !== null && waveH !== undefined && !isNaN(waveH)) {
+        const seaState = getDouglasSeaState(waveH);
+        document.getElementById('wave-height-val').textContent = `${waveH.toFixed(2)} m (${seaState.label})`;
     } else {
         document.getElementById('wave-height-val').textContent = '-- m';
     }
@@ -1948,12 +2043,32 @@ function updateMoonPhase() {
     const hourStr = nextPhaseDate.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
     const nextPhaseText = `${nextP.prefix} ${dayStr} ob ${hourStr}`;
     
+    // For principal phases, calculate the exact moment of the current phase
+    let currentPhaseExactMoment = "";
+    if (phaseName === "Prazna Luna - Mlaj" || phaseName === "Prvi krajec" || phaseName === "Polna Luna - Ščip" || phaseName === "Zadnji krajec") {
+        let currentTargetRatio = 0.0;
+        if (phaseName === "Prvi krajec") currentTargetRatio = 0.25;
+        else if (phaseName === "Polna Luna - Ščip") currentTargetRatio = 0.5;
+        else if (phaseName === "Zadnji krajec") currentTargetRatio = 0.75;
+        
+        let diffToCurrent = currentTargetRatio - cycleProgress;
+        if (diffToCurrent > 0.5) diffToCurrent -= 1.0;
+        if (diffToCurrent < -0.5) diffToCurrent += 1.0;
+        
+        const currentPhaseDate = new Date(now.getTime() + (diffToCurrent * synodicMonth));
+        const cDayStr = String(currentPhaseDate.getDate()).padStart(2, '0') + '.' + 
+                        String(currentPhaseDate.getMonth() + 1).padStart(2, '0') + '.';
+        const cHourStr = currentPhaseDate.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
+        
+        currentPhaseExactMoment = ` (${cDayStr} ob ${cHourStr})`;
+    }
+    
     // Update UI elements
     const phaseNameEl = document.getElementById('moon-phase-name');
     const coeffValEl = document.getElementById('moon-coeff-val');
     const nextPhaseEl = document.getElementById('moon-next-phase');
     
-    if (phaseNameEl) phaseNameEl.textContent = phaseName;
+    if (phaseNameEl) phaseNameEl.textContent = `${phaseName}${currentPhaseExactMoment}`;
     if (coeffValEl) coeffValEl.innerHTML = `Tip: ${coeffDesc}`;
     if (nextPhaseEl) nextPhaseEl.textContent = nextPhaseText;
     

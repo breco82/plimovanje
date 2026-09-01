@@ -111,7 +111,7 @@ body {
     background: var(--card-bg);
     border: 1px solid var(--border-color);
     border-radius: 16px;
-    padding: 1.5rem;
+    padding: 1.05rem 1.25rem;
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.15);
@@ -129,7 +129,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.35rem;
 }
 
 .card-title {
@@ -154,7 +154,7 @@ body {
     display: flex;
     align-items: baseline;
     gap: 0.25rem;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.25rem;
 }
 
 .card-value {
@@ -162,6 +162,23 @@ body {
     font-size: 2.2rem;
     font-weight: 700;
     letter-spacing: -1px;
+}
+
+#card-sea-temp .card-value {
+    font-size: 1.55rem;
+}
+
+#card-high-tide .card-value, 
+#card-low-tide .card-value {
+    font-size: 1.55rem;
+}
+
+#card-high-tide .card-subtitle, 
+#card-low-tide .card-subtitle {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-top: 2px;
 }
 
 .card-unit {
@@ -762,21 +779,17 @@ body.light-theme .forecast-day-card {
 }
 
 .moon-icon-box {
-    width: 44px;
-    height: 44px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    width: 52px;
+    height: 52px;
+    background: radial-gradient(circle at 30% 30%, #1e293b 0%, #070b19 100%);
+    border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.5rem;
-    color: #e2e8f0;
-}
-
-#moon-icon {
-    display: inline-block;
-    transition: transform 0.3s ease;
+    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.8), 0 4px 12px rgba(0, 0, 0, 0.25);
+    flex-shrink: 0;
+    overflow: hidden;
 }
 
 .moon-details {
@@ -898,9 +911,9 @@ body.light-theme .divider {
 }
 
 body.light-theme .moon-icon-box {
-    background: rgba(0, 0, 0, 0.02);
-    border-color: rgba(0, 0, 0, 0.06);
-    color: #475569;
+    background: radial-gradient(circle at 30% 30%, #1e293b 0%, #070b19 100%);
+    border: 1px solid rgba(15, 23, 42, 0.25);
+    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.8), 0 4px 12px rgba(15, 23, 42, 0.2);
 }
 
 body.light-theme .weather-icon-box {

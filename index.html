@@ -17,7 +17,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <!-- CSS Stylesheet -->
-    <link rel="stylesheet" href="index.css?v=15">
+    <link rel="stylesheet" href="index.css?v=40">
     <link rel="manifest" href="manifest.json">
     
     <!-- Highcharts Stock Library -->
@@ -85,22 +85,7 @@
                 </div>
             </div>
 
-            <!-- Card 2: Sea Temp -->
-            <div class="dashboard-card" id="card-sea-temp">
-                <div class="card-header">
-                    <span class="card-title">Temperatura morja</span>
-                    <i class="fa-solid fa-temperature-half card-icon temp-color"></i>
-                </div>
-                <div class="card-value-wrapper">
-                    <span class="card-value" id="current-temp-val">--</span>
-                    <span class="card-unit">°C</span>
-                </div>
-                <div class="card-subtitle">
-                    ARSO - kapitanija
-                </div>
-            </div>
-
-            <!-- Card 3: Next High Tide -->
+            <!-- Card 2: Next High Tide -->
             <div class="dashboard-card" id="card-high-tide">
                 <div class="card-header">
                     <span class="card-title">Naslednja plima (visoka)</span>
@@ -114,7 +99,7 @@
                 </div>
             </div>
 
-            <!-- Card 4: Next Low Tide -->
+            <!-- Card 3: Next Low Tide -->
             <div class="dashboard-card" id="card-low-tide">
                 <div class="card-header">
                     <span class="card-title">Naslednja oseka (nizka)</span>
@@ -125,6 +110,21 @@
                 </div>
                 <div class="card-subtitle" id="next-low-height">
                     Višina: -- cm
+                </div>
+            </div>
+
+            <!-- Card 4: Sea Temp -->
+            <div class="dashboard-card" id="card-sea-temp">
+                <div class="card-header">
+                    <span class="card-title">Temperatura morja</span>
+                    <i class="fa-solid fa-temperature-half card-icon temp-color"></i>
+                </div>
+                <div class="card-value-wrapper">
+                    <span class="card-value" id="current-temp-val">--</span>
+                    <span class="card-unit">°C</span>
+                </div>
+                <div class="card-subtitle">
+                    ARSO - kapitanija
                 </div>
             </div>
         </section>
@@ -231,14 +231,14 @@
                             <div class="sun-time-box">
                                 <i class="fa-solid fa-sun-up sunrise-color"></i>
                                 <div>
-                                    <span>Vzhod</span>
+                                    <span>Sončni vzhod</span>
                                     <span id="sunrise-time">--:--</span>
                                 </div>
                             </div>
                             <div class="sun-time-box">
                                 <i class="fa-solid fa-sun-down sunset-color"></i>
                                 <div>
-                                    <span>Zahod</span>
+                                    <span>Sončni zahod</span>
                                     <span id="sunset-time">--:--</span>
                                 </div>
                             </div>
@@ -251,7 +251,7 @@
                             </div>
                             <div class="moon-content">
                                 <div class="moon-icon-box" id="moon-icon-box">
-                                    <i class="fa-solid fa-moon" id="moon-icon"></i>
+                                    <canvas id="moon-canvas" width="46" height="46" style="display: block;"></canvas>
                                 </div>
                                 <div class="moon-details">
                                     <span class="moon-name" id="moon-phase-name">Nalaganje...</span>
@@ -364,8 +364,8 @@
     </div>
 
     <!-- Application Logic Scripts -->
-    <script src="Arcots.js?v=39"></script>
-    <script src="TideCalculator.js?v=39"></script>
-    <script src="index.js?v=39"></script>
+    <script src="Arcots.js?v=40"></script>
+    <script src="TideCalculator.js?v=40"></script>
+    <script src="index.js?v=40"></script>
 </body>
 </html>

@@ -369,26 +369,31 @@ async function loadWaterData(arsoPeriod) {
 }
 
 // Load and merge both 24h and 30d tables to avoid lag in the 30d history table
-async function loadMergedWaterData() {
-    const [dayDataRaw, historyDataRaw] = await Promise.all([
-        loadWaterData("1"),
-        loadWaterData("30")
-    ]);
+async function loadMergedWaterData(onFirstData) {
+    // 1. Fetch 24h table first for fast initial response
+    const dayDataPromise = loadWaterData("1").then(dayDataRaw => {
+        const dayData = dayDataRaw.map(item => ({
+            time: parseArsoDate(item.time),
+            temp: item.temp,
+            level: item.level
+        })).sort((a, b) => a.time - b.time);
+        
+        if (typeof onFirstData === 'function') {
+            onFirstData(dayData);
+        }
+        return dayData;
+    });
     
-    const dayData = dayDataRaw.map(item => ({
-        time: parseArsoDate(item.time),
-        temp: item.temp,
-        level: item.level
-    }));
+    // 2. In parallel, fetch 30-day history table
+    const historyDataPromise = loadWaterData("30").then(historyDataRaw => {
+        return historyDataRaw.map(item => ({
+            time: parseArsoDate(item.time),
+            temp: item.temp,
+            level: item.level
+        })).sort((a, b) => a.time - b.time);
+    });
     
-    const historyData = historyDataRaw.map(item => ({
-        time: parseArsoDate(item.time),
-        temp: item.temp,
-        level: item.level
-    }));
-    
-    // Sort historyData chronologically
-    historyData.sort((a, b) => a.time - b.time);
+    const [dayData, historyData] = await Promise.all([dayDataPromise, historyDataPromise]);
     
     // Interpolate hourly history data into 10-minute steps so it matches 10-minute predictions exactly
     const interpolatedHistory = [];
@@ -1169,7 +1174,73 @@ async function refreshData() {
     try {
         // Fetch Open-Meteo dual-pressure data (crucial for chart)
         const meteoPromise = loadOpenMeteoPressures();
-        actualData = await loadMergedWaterData();
+        
+        const updateUIWithData = (dataList) => {
+            if (!dataList || dataList.length === 0) return;
+            const latest = dataList[dataList.length - 1];
+            const relativeVal = latest.level - MEAN_SEA_LEVEL_OFFSET;
+            const relativeSign = relativeVal >= 0 ? '+' : '';
+            document.getElementById('current-level-val').textContent = `${relativeSign}${Math.round(relativeVal)}`;
+            document.getElementById('relative-level-val').textContent = `Absolutna gladina: ${Math.round(latest.level)} cm`;
+            updateWaterGauge(relativeVal);
+            
+            const timeStr = latest.time.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
+            const timeEl = document.getElementById('level-time-val');
+            if (timeEl) timeEl.textContent = `Meritev ARSO ob: ${timeStr}`;
+            
+            document.getElementById('current-temp-val').textContent = latest.temp.toFixed(1);
+            
+            // Check for flood warning (level >= 300 cm)
+            const warningContainer = document.getElementById('warning-banner-container');
+            const levelCard = document.getElementById('card-sea-level');
+            
+            if (latest.level >= 300.0) {
+                if (levelCard) levelCard.classList.add('warning-active');
+                if (warningContainer) {
+                    warningContainer.innerHTML = `
+                        <div class="warning-banner">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                            <span>OPOZORILO: Gladina morja presega kritično mejo (300 cm)! Možnost poplavljanja obale.</span>
+                        </div>
+                    `;
+                }
+            } else {
+                if (levelCard) levelCard.classList.remove('warning-active');
+                if (warningContainer) warningContainer.innerHTML = '';
+            }
+            
+            // Calculate sea level trend (raste / pada / stagnira) based on last 3 measurements
+            const latestPoints = dataList.slice(-3);
+            const trendBadge = document.getElementById('level-trend-badge');
+            if (trendBadge && latestPoints.length >= 3) {
+                const totalDiff = latestPoints[2].level - latestPoints[0].level;
+                trendBadge.className = 'trend-badge'; // Reset state classes
+                
+                if (totalDiff > 0.4) {
+                    trendBadge.innerHTML = '<i class="fa-solid fa-arrow-trend-up"></i> raste';
+                    trendBadge.classList.add('trend-up');
+                } else if (totalDiff < -0.4) {
+                    trendBadge.innerHTML = '<i class="fa-solid fa-arrow-trend-down"></i> pada';
+                    trendBadge.classList.add('trend-down');
+                } else {
+                    trendBadge.innerHTML = '<i class="fa-solid fa-arrows-left-right"></i> stagnira';
+                    trendBadge.classList.add('trend-stable');
+                }
+            }
+            
+            // Calculate high/low tide predictions based on current device time
+            calculateTideExtrema(new Date());
+            
+            // Draw the chart immediately
+            renderChart();
+        };
+
+        // Load 24h table first for instant UI response, then full 30d history in background
+        actualData = await loadMergedWaterData((quick24hData) => {
+            actualData = quick24hData;
+            updateUIWithData(actualData);
+        });
+        
         if (!actualData || actualData.length === 0) throw new Error("Data empty");
         
         // Wait for pressure data to finish loading (very fast)
@@ -1179,72 +1250,15 @@ async function refreshData() {
             console.error("Failed to load meteo pressures, continuing:", meteoErr);
         }
         
-        // Cache data to LocalStorage
+        // Cache full merged data to LocalStorage
         try {
             localStorage.setItem('arso_actual_data', JSON.stringify(actualData));
         } catch (e) {
             console.warn("Could not save to localStorage:", e);
         }
         
-        const latestTime = actualData[actualData.length - 1].time;
-        
-        // Update widgets based on latest actual measurement
-        const latest = actualData[actualData.length - 1];
-        const relativeVal = latest.level - MEAN_SEA_LEVEL_OFFSET;
-        const relativeSign = relativeVal >= 0 ? '+' : '';
-        document.getElementById('current-level-val').textContent = `${relativeSign}${Math.round(relativeVal)}`;
-        document.getElementById('relative-level-val').textContent = `Absolutna gladina: ${Math.round(latest.level)} cm`;
-        updateWaterGauge(relativeVal);
-        
-        const timeStr = latest.time.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
-        const timeEl = document.getElementById('level-time-val');
-        if (timeEl) timeEl.textContent = `Meritev ARSO ob: ${timeStr}`;
-        
-        document.getElementById('current-temp-val').textContent = latest.temp.toFixed(1);
-        
-        // Check for flood warning (level >= 300 cm)
-        const warningContainer = document.getElementById('warning-banner-container');
-        const levelCard = document.getElementById('card-sea-level');
-        
-        if (latest.level >= 300.0) {
-            if (levelCard) levelCard.classList.add('warning-active');
-            if (warningContainer) {
-                warningContainer.innerHTML = `
-                    <div class="warning-banner">
-                        <i class="fa-solid fa-triangle-exclamation"></i>
-                        <span>OPOZORILO: Gladina morja presega kritično mejo (300 cm)! Možnost poplavljanja obale.</span>
-                    </div>
-                `;
-            }
-        } else {
-            if (levelCard) levelCard.classList.remove('warning-active');
-            if (warningContainer) warningContainer.innerHTML = '';
-        }
-        
-        // Calculate sea level trend (raste / pada / stagnira) based on last 3 measurements
-        const latestPoints = actualData.slice(-3);
-        const trendBadge = document.getElementById('level-trend-badge');
-        if (trendBadge && latestPoints.length >= 3) {
-            const totalDiff = latestPoints[2].level - latestPoints[0].level;
-            trendBadge.className = 'trend-badge'; // Reset state classes
-            
-            if (totalDiff > 0.4) {
-                trendBadge.innerHTML = '<i class="fa-solid fa-arrow-trend-up"></i> raste';
-                trendBadge.classList.add('trend-up');
-            } else if (totalDiff < -0.4) {
-                trendBadge.innerHTML = '<i class="fa-solid fa-arrow-trend-down"></i> pada';
-                trendBadge.classList.add('trend-down');
-            } else {
-                trendBadge.innerHTML = '<i class="fa-solid fa-arrows-left-right"></i> stagnira';
-                trendBadge.classList.add('trend-stable');
-            }
-        }
-        
-        // Calculate high/low tide predictions based on current device time
-        calculateTideExtrema(new Date());
-        
-        // Draw the chart
-        renderChart();
+        // Update UI & Chart with full 30-day dataset
+        updateUIWithData(actualData);
     } catch (err) {
         console.error("Error refreshing data:", err);
         // Show error indicator in cards
@@ -1626,7 +1640,7 @@ function renderWeather() {
     }
     if (waveH !== null && waveH !== undefined && !isNaN(waveH)) {
         const seaState = getDouglasSeaState(waveH);
-        document.getElementById('wave-height-val').textContent = `${waveH.toFixed(2)} m (${seaState.label})`;
+        document.getElementById('wave-height-val').textContent = `${waveH.toFixed(2)} m - ${seaState.label}`;
     } else {
         document.getElementById('wave-height-val').textContent = '-- m';
     }
@@ -1783,7 +1797,7 @@ function renderChart() {
                 marker: { enabled: false }
             },
             {
-                name: 'Hibridna napoved (beta)',
+                name: 'Hibridna napoved (astronomija + zračni tlak in veter)',
                 data: hybridSeriesData,
                 type: 'spline',
                 color: '#eab308', // Vivid yellow
@@ -2004,6 +2018,95 @@ function toggleFullscreen() {
     }
 }
 
+// Draw realistic dynamic moon sphere with exact astronomical terminator shading
+function drawRealisticMoon(ageDays) {
+    const canvas = document.getElementById('moon-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
+    const r = (w / 2) - 3;
+    const cx = w / 2;
+    const cy = h / 2;
+    
+    ctx.clearRect(0, 0, w, h);
+    
+    // 1. Draw base dark sphere (night side of the Moon)
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.clip();
+    
+    // Dark surface gradient
+    const darkGrad = ctx.createRadialGradient(cx - r*0.3, cy - r*0.3, r*0.1, cx, cy, r);
+    darkGrad.addColorStop(0, '#2d3748');
+    darkGrad.addColorStop(0.8, '#1e293b');
+    darkGrad.addColorStop(1, '#0f172a');
+    ctx.fillStyle = darkGrad;
+    ctx.fill();
+    
+    // Subtle maria markings on dark side
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+    ctx.beginPath();
+    ctx.arc(cx - r*0.25, cy - r*0.2, r*0.32, 0, Math.PI * 2);
+    ctx.arc(cx + r*0.28, cy + r*0.15, r*0.24, 0, Math.PI * 2);
+    ctx.arc(cx - r*0.1, cy + r*0.38, r*0.22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    
+    // 2. Draw illuminated portion
+    const synodic = 29.530588853;
+    const phase = ((ageDays % synodic) + synodic) % synodic / synodic; // 0.0 to 1.0
+    
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.clip();
+    
+    ctx.beginPath();
+    if (phase < 0.5) {
+        // Waxing (Rastoča): Illuminated on the RIGHT (0 = new, 0.25 = 1st quarter, 0.5 = full)
+        ctx.arc(cx, cy, r, -Math.PI/2, Math.PI/2, false);
+        const k = Math.cos(phase * 2 * Math.PI); // 1 (new) -> 0 (1st quarter) -> -1 (full)
+        ctx.ellipse(cx, cy, Math.max(0.1, Math.abs(r * k)), r, 0, Math.PI/2, -Math.PI/2, k > 0);
+    } else {
+        // Waning (Padajoča): Illuminated on the LEFT (0.5 = full, 0.75 = last quarter, 1.0 = new)
+        ctx.arc(cx, cy, r, Math.PI/2, -Math.PI/2, false);
+        const k = Math.cos(phase * 2 * Math.PI); // -1 (full) -> 0 (last quarter) -> 1 (new)
+        ctx.ellipse(cx, cy, Math.max(0.1, Math.abs(r * k)), r, 0, -Math.PI/2, Math.PI/2, k > 0);
+    }
+    ctx.closePath();
+    
+    // Lit moon surface texture & gradient
+    const litGrad = ctx.createRadialGradient(cx - r*0.3, cy - r*0.3, r*0.05, cx, cy, r);
+    litGrad.addColorStop(0, '#ffffff');
+    litGrad.addColorStop(0.3, '#f8fafc');
+    litGrad.addColorStop(0.7, '#e2e8f0');
+    litGrad.addColorStop(1, '#94a3b8');
+    ctx.fillStyle = litGrad;
+    ctx.fill();
+    
+    // Maria / crater textures on lit side
+    ctx.fillStyle = 'rgba(100, 116, 139, 0.28)';
+    ctx.beginPath();
+    ctx.arc(cx - r*0.28, cy - r*0.22, r*0.3, 0, Math.PI * 2);
+    ctx.arc(cx + r*0.25, cy + r*0.12, r*0.24, 0, Math.PI * 2);
+    ctx.arc(cx - r*0.08, cy + r*0.35, r*0.22, 0, Math.PI * 2);
+    ctx.arc(cx + r*0.15, cy - r*0.32, r*0.16, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.restore();
+    
+    // 3. Subtle outer rim glow / 3D sphere illusion
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+}
+
 // Calculate moon phase client-side based on astronomical cycle
 function updateMoonPhase() {
     const now = new Date();
@@ -2016,37 +2119,27 @@ function updateMoonPhase() {
     const ageDays = ((diffMs % synodicMonth) + synodicMonth) % synodicMonth / 86400000;
     
     let phaseName = "";
-    let iconClass = "fa-solid fa-moon";
-    let iconTransform = "";
     
     if (ageDays < 1.0 || ageDays >= 28.53) {
         phaseName = "Prazna Luna - Mlaj";
-        iconClass = "fa-regular fa-circle";
     } else if (ageDays < 6.38) {
         phaseName = "Rastoča Luna";
-        iconClass = "fa-solid fa-moon";
-        iconTransform = "scaleX(-1)"; // Mirror to point like '('
     } else if (ageDays < 8.38) {
         phaseName = "Prvi krajec";
-        iconClass = "fa-solid fa-circle-half-stroke";
-        iconTransform = "rotate(180deg)"; // Make it right-side filled
     } else if (ageDays < 13.76) {
         phaseName = "Rastoča Luna";
-        iconClass = "fa-solid fa-circle-half-stroke";
-        iconTransform = "rotate(180deg)"; // Make it right-side filled
     } else if (ageDays < 15.76) {
         phaseName = "Polna Luna - Ščip";
-        iconClass = "fa-solid fa-circle";
     } else if (ageDays < 21.15) {
         phaseName = "Padajoča Luna";
-        iconClass = "fa-solid fa-circle-half-stroke"; // Left-side filled by default
     } else if (ageDays < 23.15) {
         phaseName = "Zadnji krajec";
-        iconClass = "fa-solid fa-circle-half-stroke"; // Left-side filled by default
     } else {
         phaseName = "Padajoča Luna";
-        iconClass = "fa-solid fa-moon"; // Points like ')' by default
     }
+    
+    // Draw realistic dynamic moon sphere on Canvas
+    drawRealisticMoon(ageDays);
     
     // Calculate Tide Coefficient (0 = Neap, 100 = Spring)
     // Spring tide occurs at New Moon (0) and Full Moon (14.765)
@@ -2121,20 +2214,6 @@ function updateMoonPhase() {
     if (phaseNameEl) phaseNameEl.textContent = `${phaseName}${currentPhaseExactMoment}`;
     if (coeffValEl) coeffValEl.innerHTML = `Tip: ${coeffDesc}`;
     if (nextPhaseEl) nextPhaseEl.textContent = nextPhaseText;
-    
-    const moonIcon = document.getElementById('moon-icon');
-    if (moonIcon) {
-        moonIcon.className = iconClass;
-        moonIcon.style.display = "inline-block"; // Force display inline-block to allow transforms
-        moonIcon.style.transform = iconTransform;
-        if (phaseName === "Polna Luna - Ščip") {
-            moonIcon.style.textShadow = "0 0 10px #fff";
-            moonIcon.style.color = "#fff";
-        } else {
-            moonIcon.style.textShadow = "none";
-            moonIcon.style.color = "";
-        }
-    }
 }
 
 // Toggle between light and dark themes

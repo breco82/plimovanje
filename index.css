@@ -1146,4 +1146,11 @@ body.light-theme .wind-arrow {
     color: #475569;
 }
 
+/* Custom Highcharts Tooltip Container */
+.chart-custom-tooltip {
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    line-height: 1.35;
+}
+
 

@@ -17,7 +17,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <!-- CSS Stylesheet -->
-    <link rel="stylesheet" href="index.css?v=40">
+    <link rel="stylesheet" href="index.css?v=42">
     <link rel="manifest" href="manifest.json">
     
     <!-- Highcharts Stock Library -->
@@ -167,158 +167,148 @@
             </main>
 
             <!-- Sidebar: Weather & Met (Second) -->
+            <!-- Unified Weather & Forecast Section -->
             <aside class="sidebar-card" style="width: 100%;">
-                <div class="weather-header-row" style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 12px;">
-                    <h2 style="margin: 0; font-size: 1.1rem;">Trenutne vremenske razmere</h2>
-                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
-                        <span id="weather-source-badge" style="font-size: 0.65rem; font-weight: 600; color: var(--text-secondary);">Vir: --</span>
-                        <span id="weather-time-badge" style="font-size: 0.6rem; color: var(--text-secondary); opacity: 0.85;">Meritev ob: --</span>
-                    </div>
+                <!-- Header with Title & Large Measurement Time -->
+                <div class="weather-header-row" style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 14px;">
+                    <h2 style="margin: 0; font-size: 1.4rem; font-weight: 700; letter-spacing: -0.5px;">Vreme</h2>
+                    <span id="weather-time-badge" style="font-size: 0.85rem; font-weight: 600; color: var(--text-primary);">Meritev ob: --</span>
                 </div>
                 
-                <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 16px; text-align: center; width: 100%;">
-                    <div id="current-weather-icon-box" style="font-size: 2.5rem; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; width: 70px; height: 70px; border-radius: 50%; border: 1px solid var(--border-color); background: var(--bg-hover);">
+                <!-- Location Tabs (Portorož / Piran) -->
+                <div class="weather-tabs" style="display: flex; gap: 6px; margin-bottom: 18px; background: var(--border-color); padding: 4px; border-radius: 8px; font-size: 0.82rem; max-width: 360px;">
+                    <button class="weather-tab-btn active" id="tab-portoroz" onclick="setWeatherSource('portoroz')" style="flex: 1; text-align: center; padding: 7px 0; border: none; background: transparent; border-radius: 6px; color: var(--text-secondary); cursor: pointer; font-weight: 600; transition: all 0.2s;">Letališče Portorož</button>
+                    <button class="weather-tab-btn" id="tab-vida" onclick="setWeatherSource('vida')" style="flex: 1; text-align: center; padding: 7px 0; border: none; background: transparent; border-radius: 6px; color: var(--text-secondary); cursor: pointer; font-weight: 600; transition: all 0.2s;">Piran (Boja Vida)</button>
+                </div>
+
+                <!-- Center Weather Icon, Condition Description & Main Temperature -->
+                <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 20px; text-align: center; width: 100%;">
+                    <div id="current-weather-icon-box" style="font-size: 2.8rem; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; width: 76px; height: 76px; border-radius: 50%; border: 1px solid var(--border-color); background: var(--bg-hover);">
                         <i class="fa-solid fa-sun" id="current-weather-icon"></i>
                     </div>
-                    <div class="weather-desc-text" id="weather-desc-val" style="margin: 0; font-weight: 600; font-size: 1.1rem; text-transform: capitalize;">Nalaganje...</div>
-                </div>
-                
-                <!-- Weather Tabs -->
-                <div class="weather-tabs" style="display: flex; gap: 4px; margin-bottom: 16px; background: var(--border-color); padding: 3px; border-radius: 6px; font-size: 0.75rem; max-width: 320px;">
-                    <button class="weather-tab-btn active" id="tab-portoroz" onclick="setWeatherSource('portoroz')" style="flex: 1; text-align: center; padding: 6px 0; border: none; background: transparent; border-radius: 4px; color: var(--text-secondary); cursor: pointer; font-weight: 600; transition: all 0.2s;">Letališče Portorož</button>
-                    <button class="weather-tab-btn" id="tab-vida" onclick="setWeatherSource('vida')" style="flex: 1; text-align: center; padding: 6px 0; border: none; background: transparent; border-radius: 4px; color: var(--text-secondary); cursor: pointer; font-weight: 600; transition: all 0.2s;">Boja Vida</button>
+                    <div class="weather-desc-text" id="weather-desc-val" style="margin: 0; font-weight: 700; font-size: 1.25rem; text-transform: capitalize;">Nalaganje...</div>
                 </div>
 
-                <!-- Parameters list & Sun/Moon Grid -->
-                <div class="current-weather-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; width: 100%;">
-                    <!-- Met parameters -->
-                    <div>
-                        <ul class="met-list" style="margin: 0; padding: 0; list-style: none;">
-                            <li style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
-                                <div class="met-item-label" style="display: flex; align-items: center; gap: 8px; color: var(--text-secondary);"><i class="fa-solid fa-temperature-half"></i> Temperatura zraka</div>
-                                <span class="met-item-value" id="current-air-temp-val" style="font-weight: 600;">--°C</span>
-                            </li>
-                            <li style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
-                                <div class="met-item-label" style="display: flex; align-items: center; gap: 8px; color: var(--text-secondary);"><i class="fa-solid fa-temperature-arrow-up"></i> Občutek (feels-like)</div>
-                                <span class="met-item-value" id="current-feels-like-val" style="font-weight: 600;">Obč. --°C</span>
-                            </li>
-                            <li style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
-                                <div class="met-item-label" style="display: flex; align-items: center; gap: 8px; color: var(--text-secondary);"><i class="fa-solid fa-gauge-high"></i> Zračni tlak</div>
-                                <span class="met-item-value" id="air-pressure-val" style="font-weight: 600;">-- hPa</span>
-                            </li>
-                            <li style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
-                                <div class="met-item-label" style="display: flex; align-items: center; gap: 8px; color: var(--text-secondary);"><i class="fa-solid fa-droplet"></i> Vlažnost zraka</div>
-                                <span class="met-item-value" id="humidity-val" style="font-weight: 600;">-- %</span>
-                            </li>
-                            <li style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
-                                <div class="met-item-label" style="display: flex; align-items: center; gap: 8px; color: var(--text-secondary);"><i class="fa-solid fa-wind"></i> Hitrost vetra</div>
-                                <span class="met-item-value" id="wind-speed-val" style="font-weight: 600;">-- km/h</span>
-                            </li>
-                            <li style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
-                                <div class="met-item-label" style="display: flex; align-items: center; gap: 8px; color: var(--text-secondary);"><i class="fa-solid fa-compass"></i> Smer vetra</div>
-                                <span class="met-item-value" id="wind-dir-val" style="font-weight: 600;">--°</span>
-                            </li>
-                            <li style="display: flex; justify-content: space-between; padding: 8px 0;">
-                                <div class="met-item-label" style="display: flex; align-items: center; gap: 8px; color: var(--text-secondary);"><i class="fa-solid fa-water"></i> Višina valov</div>
-                                <span class="met-item-value" id="wave-height-val" style="font-weight: 600;">-- m</span>
-                            </li>
-                        </ul>
+                <!-- Parameters list -->
+                <div style="margin-bottom: 20px; width: 100%;">
+                    <ul class="met-list" style="margin: 0; padding: 0; list-style: none;">
+                        <li style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border-color);">
+                            <div class="met-item-label" style="display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 0.9rem;"><i class="fa-solid fa-temperature-half"></i> Temperatura zraka</div>
+                            <span class="met-item-value" id="current-air-temp-val" style="font-weight: 700; font-size: 1.35rem; color: var(--text-primary);">--°C</span>
+                        </li>
+                        <li style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+                            <div class="met-item-label" style="display: flex; align-items: center; gap: 8px; color: var(--text-secondary);"><i class="fa-solid fa-temperature-arrow-up"></i> Občutek (feels-like)</div>
+                            <span class="met-item-value" id="current-feels-like-val" style="font-weight: 600;">Obč. --°C</span>
+                        </li>
+                        <li style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+                            <div class="met-item-label" style="display: flex; align-items: center; gap: 8px; color: var(--text-secondary);"><i class="fa-solid fa-wind"></i> Hitrost vetra</div>
+                            <span class="met-item-value" id="wind-speed-val" style="font-weight: 600; text-align: right;">-- km/h</span>
+                        </li>
+                        <li style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+                            <div class="met-item-label" style="display: flex; align-items: center; gap: 8px; color: var(--text-secondary);"><i class="fa-solid fa-compass"></i> Smer vetra</div>
+                            <span class="met-item-value" id="wind-dir-val" style="font-weight: 600;">--°</span>
+                        </li>
+                        <li style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+                            <div class="met-item-label" style="display: flex; align-items: center; gap: 8px; color: var(--text-secondary);"><i class="fa-solid fa-water"></i> Višina valov</div>
+                            <span class="met-item-value" id="wave-height-val" style="font-weight: 600;">-- m</span>
+                        </li>
+                        <li style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+                            <div class="met-item-label" style="display: flex; align-items: center; gap: 8px; color: var(--text-secondary);"><i class="fa-solid fa-gauge-high"></i> Zračni tlak</div>
+                            <span class="met-item-value" id="air-pressure-val" style="font-weight: 600;">-- hPa</span>
+                        </li>
+                        <li style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0;">
+                            <div class="met-item-label" style="display: flex; align-items: center; gap: 8px; color: var(--text-secondary);"><i class="fa-solid fa-droplet"></i> Vlažnost zraka</div>
+                            <span class="met-item-value" id="humidity-val" style="font-weight: 600;">-- %</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Vremenska napoved (3 dni + urni/3-urni trak) -->
+                <div class="forecast-section" style="margin-bottom: 24px;">
+                    <h3 style="margin: 0 0 12px 0; font-size: 1.05rem; font-weight: 600;">Vremenska napoved (ARSO ALADIN)</h3>
+                    <div class="forecast-container" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; width: 100%;">
+                        <!-- Danes -->
+                        <div class="forecast-day-card today-card" id="forecast-card-0" onclick="toggleHourlyForecast(0)">
+                            <span class="forecast-day-name">Danes</span>
+                            <div class="weather-icon-box" id="weather-icon-box">
+                                <i class="fa-solid fa-sun" id="weather-icon"></i>
+                            </div>
+                            <span class="forecast-temp" id="air-temp-val">--°C</span>
+                            <span class="forecast-wind" id="air-temp-feels-val">Obč. --</span>
+                            <div id="forecast-day-0-wave" style="margin-top: 3px; display: flex; align-items: center; justify-content: center;">--</div>
+                        </div>
+                        <!-- Jutri -->
+                        <div class="forecast-day-card" id="forecast-card-1" onclick="toggleHourlyForecast(1)">
+                            <span class="forecast-day-name" id="forecast-day-1-name">Jutri</span>
+                            <div class="weather-icon-box" id="forecast-day-1-icon-box">
+                                <i class="fa-solid fa-sun" id="forecast-day-1-icon"></i>
+                            </div>
+                            <span class="forecast-temp" id="forecast-day-1-temp">-- / -- °C</span>
+                            <span class="forecast-wind" id="forecast-day-1-wind">-- km/h</span>
+                            <div id="forecast-day-1-wave" style="margin-top: 3px; display: flex; align-items: center; justify-content: center;">--</div>
+                        </div>
+                        <!-- Pojutrišnjem -->
+                        <div class="forecast-day-card" id="forecast-card-2" onclick="toggleHourlyForecast(2)">
+                            <span class="forecast-day-name" id="forecast-day-2-name">Pojutr.</span>
+                            <div class="weather-icon-box" id="forecast-day-2-icon-box">
+                                <i class="fa-solid fa-cloud-sun" id="forecast-day-2-icon"></i>
+                            </div>
+                            <span class="forecast-temp" id="forecast-day-2-temp">-- / -- °C</span>
+                            <span class="forecast-wind" id="forecast-day-2-wind">-- km/h</span>
+                            <div id="forecast-day-2-wave" style="margin-top: 3px; display: flex; align-items: center; justify-content: center;">--</div>
+                        </div>
                     </div>
                     
-                    <!-- Sun times & Moon widget -->
-                    <div style="display: flex; flex-direction: column; gap: 1rem;">
-                        <div class="sun-times" style="margin-top: 0; width: 100%;">
-                            <div class="sun-time-box">
-                                <i class="fa-solid fa-sun-up sunrise-color"></i>
-                                <div>
-                                    <span>Sončni vzhod</span>
-                                    <span id="sunrise-time">--:--</span>
-                                </div>
-                            </div>
-                            <div class="sun-time-box">
-                                <i class="fa-solid fa-sun-down sunset-color"></i>
-                                <div>
-                                    <span>Sončni zahod</span>
-                                    <span id="sunset-time">--:--</span>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="moon-widget" style="margin: 0; width: 100%;">
-                            <div class="moon-header">
-                                <span>Lunina mena</span>
-                                <i class="fa-solid fa-moon"></i>
-                            </div>
-                            <div class="moon-content">
-                                <div class="moon-icon-box" id="moon-icon-box">
-                                    <canvas id="moon-canvas" width="46" height="46" style="display: block;"></canvas>
-                                </div>
-                                <div class="moon-details">
-                                    <span class="moon-name" id="moon-phase-name">Nalaganje...</span>
-                                    <span class="moon-coeff" id="moon-coeff-val">Koeficient: --</span>
-                                    <span class="moon-next" id="moon-next-phase" style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 4px; display: block; font-weight: 500;">--</span>
-                                </div>
-                            </div>
+                    <!-- Detailed sliding hourly forecast widget -->
+                    <div class="hourly-forecast-panel" id="hourly-forecast-panel" style="display: none; margin-top: 1.25rem; width: 100%;">
+                        <div class="hourly-forecast-title" id="hourly-forecast-title">Podrobna napoved za danes</div>
+                        <div class="hourly-scroll-container" id="hourly-scroll-container">
+                            <!-- Populated dynamically via JS -->
                         </div>
                     </div>
                 </div>
 
-                <!-- PWA Install Banner -->
-                <div class="pwa-banner" id="pwa-install-banner" style="display: none; margin-top: 1rem;">
-                    <div class="pwa-text">
-                        <span class="pwa-title">Plimovanje Koper</span>
-                        <span class="pwa-desc">Dodaj na domač zaslon</span>
-                    </div>
-                    <button class="pwa-btn" id="pwa-install-btn">Namesti</button>
-                </div>
-            </aside>
-
-            <!-- Forecast Card (Third) -->
-            <aside class="sidebar-card" style="width: 100%;">
-                <h2 style="margin: 0 0 12px 0; font-size: 1.1rem;">Vremenska napoved Piran (ARSO ALADIN)</h2>
-                <div class="forecast-container" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; width: 100%;">
-                    <!-- Danes -->
-                    <div class="forecast-day-card today-card" id="forecast-card-0" onclick="toggleHourlyForecast(0)">
-                        <span class="forecast-day-name">Danes</span>
-                        <div class="weather-icon-box" id="weather-icon-box">
-                            <i class="fa-solid fa-sun" id="weather-icon"></i>
+                <!-- Sonce in Lunina mena (At the bottom) -->
+                <div class="sun-moon-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+                    <!-- Sun times -->
+                    <div class="sun-times" style="margin-top: 0; width: 100%;">
+                        <div class="sun-time-box">
+                            <i class="fa-solid fa-sun-up sunrise-color"></i>
+                            <div>
+                                <span>Sončni vzhod</span>
+                                <span id="sunrise-time">--:--</span>
+                            </div>
                         </div>
-                        <span class="forecast-temp" id="air-temp-val">--°C</span>
-                        <span class="forecast-wind" id="air-temp-feels-val">Obč. --</span>
-                        <div id="forecast-day-0-wave" style="margin-top: 3px; display: flex; align-items: center; justify-content: center;">--</div>
-                    </div>
-                    <!-- Jutri -->
-                    <div class="forecast-day-card" id="forecast-card-1" onclick="toggleHourlyForecast(1)">
-                        <span class="forecast-day-name" id="forecast-day-1-name">Jutri</span>
-                        <div class="weather-icon-box" id="forecast-day-1-icon-box">
-                            <i class="fa-solid fa-sun" id="forecast-day-1-icon"></i>
+                        <div class="sun-time-box">
+                            <i class="fa-solid fa-sun-down sunset-color"></i>
+                            <div>
+                                <span>Sončni zahod</span>
+                                <span id="sunset-time">--:--</span>
+                            </div>
                         </div>
-                        <span class="forecast-temp" id="forecast-day-1-temp">-- / -- °C</span>
-                        <span class="forecast-wind" id="forecast-day-1-wind">-- km/h</span>
-                        <div id="forecast-day-1-wave" style="margin-top: 3px; display: flex; align-items: center; justify-content: center;">--</div>
                     </div>
-                    <!-- Pojutrišnjem -->
-                    <div class="forecast-day-card" id="forecast-card-2" onclick="toggleHourlyForecast(2)">
-                        <span class="forecast-day-name" id="forecast-day-2-name">Pojutr.</span>
-                        <div class="weather-icon-box" id="forecast-day-2-icon-box">
-                            <i class="fa-solid fa-cloud-sun" id="forecast-day-2-icon"></i>
+                    
+                    <!-- Moon widget -->
+                    <div class="moon-widget" style="margin: 0; width: 100%;">
+                        <div class="moon-header">
+                            <span>Lunina mena</span>
+                            <i class="fa-solid fa-moon"></i>
                         </div>
-                        <span class="forecast-temp" id="forecast-day-2-temp">-- / -- °C</span>
-                        <span class="forecast-wind" id="forecast-day-2-wind">-- km/h</span>
-                        <div id="forecast-day-2-wave" style="margin-top: 3px; display: flex; align-items: center; justify-content: center;">--</div>
-                    </div>
-                </div>
-                
-                <!-- Detailed sliding hourly forecast widget -->
-                <div class="hourly-forecast-panel" id="hourly-forecast-panel" style="display: none; margin-top: 1.5rem; width: 100%;">
-                    <div class="hourly-forecast-title" id="hourly-forecast-title">Podrobna napoved za danes</div>
-                    <div class="hourly-scroll-container" id="hourly-scroll-container">
-                        <!-- Populated dynamically via JS -->
+                        <div class="moon-content">
+                            <div class="moon-icon-box" id="moon-icon-box">
+                                <canvas id="moon-canvas" width="46" height="46" style="display: block;"></canvas>
+                            </div>
+                            <div class="moon-details">
+                                <span class="moon-name" id="moon-phase-name">Nalaganje...</span>
+                                <span class="moon-coeff" id="moon-coeff-val">Koeficient: --</span>
+                                <span class="moon-next" id="moon-next-phase" style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 4px; display: block; font-weight: 500;">--</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Douglas Sea Scale Legend (Collapsible) -->
-                <div class="sea-legend-wrapper" style="margin-top: 1.25rem; border-top: 1px solid var(--border-color); padding-top: 0.75rem;">
+                <div class="sea-legend-wrapper" style="border-top: 1px solid var(--border-color); padding-top: 0.75rem;">
                     <button type="button" class="sea-legend-toggle" onclick="toggleSeaLegend()" style="background: none; border: none; padding: 0; color: var(--text-secondary); font-size: 0.75rem; cursor: pointer; display: flex; align-items: center; justify-content: space-between; width: 100%; font-weight: 600;">
                         <span style="display: flex; align-items: center; gap: 6px;">
                             <i class="fa-solid fa-water" style="color: #38bdf8;"></i> Legenda valovanja morja (Douglas)
@@ -359,13 +349,22 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- PWA Install Banner -->
+                <div class="pwa-banner" id="pwa-install-banner" style="display: none; margin-top: 1rem;">
+                    <div class="pwa-text">
+                        <span class="pwa-title">Plimovanje Koper</span>
+                        <span class="pwa-desc">Dodaj na domač zaslon</span>
+                    </div>
+                    <button class="pwa-btn" id="pwa-install-btn">Namesti</button>
+                </div>
             </aside>
         </div>
     </div>
 
     <!-- Application Logic Scripts -->
-    <script src="Arcots.js?v=40"></script>
-    <script src="TideCalculator.js?v=40"></script>
-    <script src="index.js?v=40"></script>
+    <script src="Arcots.js?v=42"></script>
+    <script src="TideCalculator.js?v=42"></script>
+    <script src="index.js?v=42"></script>
 </body>
 </html>

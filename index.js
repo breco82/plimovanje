@@ -1546,9 +1546,77 @@ function parseArsoXmlDate(dateStr) {
     return isNaN(d.getTime()) ? null : d;
 }
 
-function renderWeather() {
-    const badge = document.getElementById('weather-source-badge');
+// Get wave height for a specific forecast timestamp
+function getWaveHeightForTime(dateObj) {
+    if (!dateObj) return 0.2;
+    if (marineHourlyWaves && marineHourlyWaves.length > 0) {
+        const timeMs = dateObj.getTime();
+        let bestWave = null;
+        let minDiff = 3600 * 1000 * 3;
+        for (const w of marineHourlyWaves) {
+            const wMs = new Date(w.time).getTime();
+            const diff = Math.abs(wMs - timeMs);
+            if (diff < minDiff) {
+                minDiff = diff;
+                bestWave = w.height;
+            }
+        }
+        if (bestWave !== null) return bestWave;
+    }
+    if (weatherDataVida && weatherDataVida.waveHeight !== null && weatherDataVida.waveHeight !== undefined) {
+        return weatherDataVida.waveHeight;
+    }
+    return currentMarineWaveHeight || 0.2;
+}
+
+// Find forecast point in ARSO timeline matching a specific time
+function getForecastItemForTime(dateObj) {
+    if (!arsoForecastData || !dateObj) return null;
+    const timeMs = dateObj.getTime();
     
+    // 1. Search 1h forecast timeline
+    const days1h = arsoForecastData.forecast1h?.features?.[0]?.properties?.days;
+    if (days1h) {
+        let bestItem = null;
+        let minDiff = 3600 * 1000 * 1.5;
+        for (const day of days1h) {
+            if (day.timeline) {
+                for (const item of day.timeline) {
+                    const itemMs = new Date(item.valid).getTime();
+                    const diff = Math.abs(itemMs - timeMs);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        bestItem = item;
+                    }
+                }
+            }
+        }
+        if (bestItem) return bestItem;
+    }
+    
+    // 2. Search 3h forecast timeline
+    const days3h = arsoForecastData.forecast3h?.features?.[0]?.properties?.days;
+    if (days3h) {
+        let bestItem = null;
+        let minDiff = 3600 * 1000 * 3.5;
+        for (const day of days3h) {
+            if (day.timeline) {
+                for (const item of day.timeline) {
+                    const itemMs = new Date(item.valid).getTime();
+                    const diff = Math.abs(itemMs - timeMs);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        bestItem = item;
+                    }
+                }
+            }
+        }
+        if (bestItem) return bestItem;
+    }
+    return null;
+}
+
+function renderWeather() {
     // De-activate all tabs, activate current one
     const tabVida = document.getElementById('tab-vida');
     const tabPortoroz = document.getElementById('tab-portoroz');
@@ -1558,10 +1626,8 @@ function renderWeather() {
     
     if (activeWeatherSource === 'vida') {
         if (tabVida) tabVida.classList.add('active');
-        if (badge) badge.textContent = 'Vir: Boja Vida (ARSO)';
     } else {
         if (tabPortoroz) tabPortoroz.classList.add('active');
-        if (badge) badge.textContent = 'Vir: ARSO (Letališče Portorož)';
     }
 
     const data = (activeWeatherSource === 'vida') ? weatherDataVida : weatherDataPortoroz;
@@ -1572,7 +1638,7 @@ function renderWeather() {
             const mDate = parseArsoXmlDate(data.validTime);
             if (mDate) {
                 const timeStr = mDate.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
-                timeBadge.textContent = `Meritev ob: ${timeStr}`;
+                timeBadge.textContent = `Meritev ob ${timeStr}`;
                 timeBadge.style.display = 'inline';
             } else {
                 timeBadge.style.display = 'none';
@@ -1607,10 +1673,10 @@ function renderWeather() {
     // Center weather icon box at the top of the sidebar card
     const currentIconBox = document.getElementById('current-weather-icon-box');
     if (currentIconBox) {
-        currentIconBox.innerHTML = getWeatherIconHtml(weatherIconName, "2.5rem");
+        currentIconBox.innerHTML = getWeatherIconHtml(weatherIconName, "2.8rem");
     }
 
-    // Temperature & Apparent Temp
+    // Temperature & Apparent Temp (Emphasized and Bold)
     document.getElementById('air-temp-val').textContent = `${data.temp.toFixed(1)}°C`;
     document.getElementById('current-air-temp-val').textContent = `${data.temp.toFixed(1)}°C`;
     
@@ -1941,30 +2007,85 @@ function renderChart() {
         tooltip: {
             shared: true,
             crosshairs: true,
-            followTouchMove: false, // Allows native vertical scrolling on mobile
+            useHTML: true,
+            followTouchMove: false,
+            backgroundColor: isLight ? 'rgba(255, 255, 255, 0.96)' : 'rgba(15, 23, 42, 0.95)',
+            borderColor: isLight ? 'rgba(14, 165, 233, 0.45)' : 'rgba(56, 189, 248, 0.4)',
+            borderWidth: 1,
+            borderRadius: 12,
+            shadow: {
+                color: isLight ? 'rgba(0, 0, 0, 0.12)' : 'rgba(0, 0, 0, 0.65)',
+                width: 12,
+                offsetX: 0,
+                offsetY: 4
+            },
+            style: {
+                color: isLight ? '#0f172a' : '#f8fafc',
+                fontSize: '11px',
+                fontFamily: 'Inter, sans-serif'
+            },
             formatter: function () {
-                const days = ['Ned', 'Pon', 'Tor', 'Sre', 'Čet', 'Pet', 'Sob'];
+                const days = ['Nedelja', 'Ponedeljek', 'Torek', 'Sreda', 'Četrtek', 'Petek', 'Sobota'];
                 const dateObj = new Date(this.x);
                 const dayName = days[dateObj.getDay()];
+                const dayStr = String(dateObj.getDate()).padStart(2, '0') + '.' + String(dateObj.getMonth() + 1).padStart(2, '0') + '.';
                 const timeStr = Highcharts.dateFormat('%H:%M', this.x);
-                let s = `<b>${dayName}, ${timeStr}</b><br/>`;
                 
+                let s = `<div class="chart-custom-tooltip" style="padding: 2px 3px; min-width: 140px;">`;
+                s += `<div style="font-weight:700; font-size:11px; margin-bottom:4px; color:${isLight ? '#0f172a' : '#f8fafc'}; border-bottom:1px solid ${isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.12)'}; padding-bottom:3px;">
+                        ${dayName}, ${dayStr} ob ${timeStr}
+                      </div>`;
+                
+                s += `<div style="display:flex; flex-direction:column; gap:2px; margin-bottom:3px;">`;
                 this.points.forEach(point => {
                     if (chartMode === 'level') {
                         const relVal = Math.round(point.y);
                         const sign = relVal >= 0 ? '+' : '';
-                        let prefix = 'NAP';
+                        let prefix = 'Napoved';
                         if (point.series.name.includes('Izmerjena')) {
-                            prefix = 'DEJ';
+                            prefix = 'Meritev';
                         } else if (point.series.name.includes('Hibridna')) {
-                            prefix = 'HIB';
+                            prefix = 'Hibrid';
                         }
-                        s += `<span style="color:${point.color}">●</span> ${prefix}: <b>${sign}${relVal} cm</b><br/>`;
+                        s += `<div style="display:flex; justify-content:space-between; gap:10px; align-items:center;">
+                                <span style="font-size:10px;"><span style="color:${point.color}; font-size:12px;">●</span> ${prefix}:</span>
+                                <span style="font-weight:700; font-family:'Outfit', sans-serif;">${sign}${relVal} cm</span>
+                              </div>`;
                     } else {
                         const val = point.y.toFixed(1);
-                        s += `<span style="color:${point.color}">●</span> <b>${val} °C</b><br/>`;
+                        s += `<div style="display:flex; justify-content:space-between; gap:10px; align-items:center;">
+                                <span style="font-size:10px;"><span style="color:${point.color}; font-size:12px;">●</span> Temp:</span>
+                                <span style="font-weight:700; font-family:'Outfit', sans-serif;">${val} °C</span>
+                              </div>`;
                     }
                 });
+                s += `</div>`;
+                
+                // Weather preview lookup for this exact timestamp
+                const fcItem = getForecastItemForTime(dateObj);
+                if (fcItem) {
+                    const tVal = Math.round(parseFloat(fcItem.t));
+                    const iconName = fcItem.clouds_icon_wwsyn_icon || "";
+                    const windSpeedKmh = Math.round(parseFloat(fcItem.ff_val || "0"));
+                    const windDir = fcItem.dd_shortText || "";
+                    const windDirDeg = getWindDegFromSlo(windDir);
+                    const windArrow = getWindArrowHtml(windDirDeg);
+                    const waveH = getWaveHeightForTime(dateObj);
+                    const waveIcon = getWaveIconHtml(waveH);
+                    
+                    s += `<div style="margin-top:4px; padding-top:4px; border-top:1px dashed ${isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.12)'}; display:flex; align-items:center; justify-content:space-between; gap:6px;">
+                            <div style="display:flex; align-items:center; gap:4px;">
+                                ${getWeatherIconHtml(iconName, "1.1rem")}
+                                <span style="font-weight:700;">${tVal}°C</span>
+                            </div>
+                            <div style="font-size:10px; opacity:0.9; display:flex; align-items:center; gap:5px;">
+                                <span>${windArrow}${windSpeedKmh} km/h</span>
+                                <span style="display:inline-flex; align-items:center; gap:2px;">${waveIcon} ${waveH.toFixed(2)}m</span>
+                            </div>
+                          </div>`;
+                }
+                
+                s += `</div>`;
                 return s;
             }
         },
@@ -2165,19 +2286,31 @@ function updateMoonPhase() {
         { ratio: 0.75, name: "Zadnji krajec", prefix: "Naslednji zadnji krajec" }
     ];
     
-    let nextP = null;
-    let minDiff = 2.0;
+    // If we are currently experiencing a principal phase, announce the SUBSEQUENT one!
+    let nextTargetRatio = null;
+    if (phaseName === "Prazna Luna - Mlaj") nextTargetRatio = 0.25; // Next is Prvi krajec
+    else if (phaseName === "Prvi krajec") nextTargetRatio = 0.5;   // Next is Ščip
+    else if (phaseName === "Polna Luna - Ščip") nextTargetRatio = 0.75; // Next is Zadnji krajec
+    else if (phaseName === "Zadnji krajec") nextTargetRatio = 0.0;     // Next is Mlaj
     
-    for (const p of principalPhases) {
-        let diff = p.ratio - cycleProgress;
-        if (diff <= 0.001) diff += 1.0; // Wrap around if we are past or at the phase
-        if (diff < minDiff) {
-            minDiff = diff;
-            nextP = p;
+    let nextP = null;
+    if (nextTargetRatio !== null) {
+        nextP = principalPhases.find(p => p.ratio === nextTargetRatio);
+    } else {
+        let minDiff = 2.0;
+        for (const p of principalPhases) {
+            let diff = p.ratio - cycleProgress;
+            if (diff <= 0.001) diff += 1.0; // Wrap around if we are past or at the phase
+            if (diff < minDiff) {
+                minDiff = diff;
+                nextP = p;
+            }
         }
     }
     
-    const timeToNextMs = minDiff * synodicMonth;
+    let diffToNext = nextP.ratio - cycleProgress;
+    if (diffToNext <= 0.001) diffToNext += 1.0;
+    const timeToNextMs = diffToNext * synodicMonth;
     const nextPhaseDate = new Date(now.getTime() + timeToNextMs);
     
     const dayStr = String(nextPhaseDate.getDate()).padStart(2, '0') + '.' + 

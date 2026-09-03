@@ -499,12 +499,13 @@ function getWindDegFromSlo(dirStr) {
 async function fetchWeatherWithFallback(targetUrl, isXml = false) {
     const directUrl = PROXY_URL + '?url=' + encodeURIComponent(targetUrl);
     
-    // Try 1: Direct fetch to Google Apps Script (fastest)
+    // Try 1: Direct fetch to Google Apps Script (fastest ~50ms)
     try {
         const res = await fetch(directUrl);
         if (res.ok) {
             if (isXml) {
-                return await res.text();
+                const text = await res.text();
+                if (text && text.includes('<metData>')) return text;
             } else {
                 const json = await res.json();
                 if (json && !json.error) return json;
@@ -514,13 +515,14 @@ async function fetchWeatherWithFallback(targetUrl, isXml = false) {
         console.warn("Direct Google Apps Script fetch failed, trying via CORS proxy fallback...", e);
     }
     
-    // Try 2: Via corsproxy.io
+    // Try 2: Via corsproxy.io directly to targetUrl
     try {
-        const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(directUrl)}`;
+        const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`;
         const res = await fetch(proxyUrl);
         if (res.ok) {
             if (isXml) {
-                return await res.text();
+                const text = await res.text();
+                if (text && text.includes('<metData>')) return text;
             } else {
                 const json = await res.json();
                 if (json && !json.error) return json;
@@ -530,17 +532,17 @@ async function fetchWeatherWithFallback(targetUrl, isXml = false) {
         console.warn("CORS proxy fallback failed, trying via AllOrigins fallback...", e);
     }
     
-    // Try 3: Via allorigins
+    // Try 3: Via allorigins directly to targetUrl
     try {
-        const backupUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(directUrl)}`;
+        const backupUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
         const res = await fetch(backupUrl);
         if (res.ok) {
             const wrapper = await res.json();
             if (wrapper && wrapper.contents) {
                 if (isXml) {
-                    return wrapper.contents;
+                    if (wrapper.contents.includes('<metData>')) return wrapper.contents;
                 } else {
-                    const json = JSON.parse(wrapper.contents);
+                    const json = typeof wrapper.contents === 'string' ? JSON.parse(wrapper.contents) : wrapper.contents;
                     if (json && !json.error) return json;
                 }
             }
@@ -759,6 +761,7 @@ async function loadArsoForecast() {
         
         if (portorozJson) arsoForecastDataPortoroz = portorozJson;
         if (piranJson) arsoForecastDataPiran = piranJson;
+        arsoForecastData = getActiveForecastData();
         
         // Update wave height data & populate hourly marine map
         if (marineJson && marineJson.hourly) {
@@ -790,6 +793,9 @@ async function loadArsoForecast() {
         }
         
         renderArsoForecast();
+        if (actualData.length > 0) {
+            renderChart();
+        }
     } catch (e) {
         console.error("Error loading ARSO forecast:", e);
         updateOpenMeteoFallbackCards();
@@ -1409,7 +1415,7 @@ function getArsoDescriptionFromIcon(iconName) {
 // Helper to parse official ARSO AMS station XML feeds
 async function parseArsoAmsXml(stationId, cb) {
     try {
-        const targetUrl = `http://meteo.arso.gov.si/uploads/probase/www/observ/surface/text/sl/observationAms_${stationId}_latest.xml?cb=${cb}`;
+        const targetUrl = `https://meteo.arso.gov.si/uploads/probase/www/observ/surface/text/sl/observationAms_${stationId}_latest.xml?cb=${cb}`;
         const xmlText = await fetchWeatherWithFallback(targetUrl, true);
         if (!xmlText || typeof xmlText !== 'string') return null;
 
@@ -1420,15 +1426,21 @@ async function parseArsoAmsXml(stationId, cb) {
 
         const getValue = (tagName, fallback = "") => {
             const node = metData.getElementsByTagName(tagName)[0];
-            return node ? node.textContent : fallback;
+            return node ? (node.textContent || "").trim() : fallback;
         };
 
-        const tempVal = parseFloat(getValue("t") || "0");
-        const rh = parseFloat(getValue("rh") || "0");
+        const rawT = getValue("t");
+        const tempVal = rawT && !isNaN(parseFloat(rawT)) ? parseFloat(rawT) : 0;
+        
+        const rawRh = getValue("rh");
+        const rh = rawRh && !isNaN(parseFloat(rawRh)) ? parseFloat(rawRh) : 65;
 
         // Wind calculations (both buoy and airport use m/s in ffavg_val and km/h in ffavg_val_kmh)
-        let windSpeedKmh = parseFloat(getValue("ffavg_val_kmh") || getValue("ff_val_kmh") || "0");
-        let windSpeedMs = parseFloat(getValue("ffavg_val") || getValue("ff_val") || "0");
+        let rawFfKmh = getValue("ffavg_val_kmh") || getValue("ff_val_kmh");
+        let rawFfMs = getValue("ffavg_val") || getValue("ff_val");
+        let windSpeedKmh = rawFfKmh && !isNaN(parseFloat(rawFfKmh)) ? parseFloat(rawFfKmh) : 0;
+        let windSpeedMs = rawFfMs && !isNaN(parseFloat(rawFfMs)) ? parseFloat(rawFfMs) : 0;
+        
         if (windSpeedKmh === 0 && windSpeedMs > 0) {
             windSpeedKmh = windSpeedMs * 3.6;
         } else if (windSpeedMs === 0 && windSpeedKmh > 0) {
@@ -1438,10 +1450,13 @@ async function parseArsoAmsXml(stationId, cb) {
         const e = (rh / 100.0) * 6.105 * Math.exp((17.27 * tempVal) / (237.7 + tempVal));
         const feelsLike = tempVal + 0.33 * e - 0.7 * windSpeedMs - 4.0;
 
-        const windDirDeg = parseFloat(getValue("dd_val") || "0");
-        const windDirStr = getValue("dd_shortText") || "";
+        const rawDd = getValue("dd_val") || getValue("ddavg_val");
+        const windDirDeg = rawDd && !isNaN(parseFloat(rawDd)) ? parseFloat(rawDd) : 0;
+        const windDirStr = getValue("dd_shortText") || getValue("ddavg_shortText") || "";
 
-        const pressure = parseFloat(getValue("p") || getValue("msl") || "1013");
+        const rawP = getValue("p") || getValue("msl");
+        const pressure = rawP && !isNaN(parseFloat(rawP)) ? parseFloat(rawP) : 1013;
+        
         const iconName = getValue("nn_icon-wwsyn_icon") || getValue("clouds_icon_wwsyn_icon") || "";
         let desc = getValue("nn_shortText-wwsyn_longText") || getValue("clouds_shortText") || "";
         if (!desc && iconName) {
@@ -1605,11 +1620,12 @@ function getWaveHeightForTime(dateObj) {
 
 // Find forecast point in ARSO timeline matching a specific time
 function getForecastItemForTime(dateObj) {
-    if (!arsoForecastData || !dateObj) return null;
+    const fcData = getActiveForecastData();
+    if (!fcData || !dateObj) return null;
     const timeMs = dateObj.getTime();
     
     // 1. Search 1h forecast timeline
-    const days1h = arsoForecastData.forecast1h?.features?.[0]?.properties?.days;
+    const days1h = fcData.forecast1h?.features?.[0]?.properties?.days;
     if (days1h) {
         let bestItem = null;
         let minDiff = 3600 * 1000 * 1.5;
@@ -1629,7 +1645,7 @@ function getForecastItemForTime(dateObj) {
     }
     
     // 2. Search 3h forecast timeline
-    const days3h = arsoForecastData.forecast3h?.features?.[0]?.properties?.days;
+    const days3h = fcData.forecast3h?.features?.[0]?.properties?.days;
     if (days3h) {
         let bestItem = null;
         let minDiff = 3600 * 1000 * 3.5;
@@ -1642,6 +1658,24 @@ function getForecastItemForTime(dateObj) {
                         minDiff = diff;
                         bestItem = item;
                     }
+                }
+            }
+        }
+        if (bestItem) return bestItem;
+    }
+    
+    // 3. Fallback to 24h daily timeline
+    const days24h = fcData.forecast24h?.features?.[0]?.properties?.days;
+    if (days24h) {
+        let bestItem = null;
+        let minDiff = 86400 * 1000 * 1.5;
+        for (const day of days24h) {
+            if (day.timeline && day.timeline.length > 0) {
+                const itemDate = new Date(day.date);
+                const diff = Math.abs(itemDate.getTime() - timeMs);
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    bestItem = day.timeline[0];
                 }
             }
         }
@@ -1779,6 +1813,21 @@ function updateWaterGauge(relativeLevel) {
 function setWeatherSource(source) {
     if (source === 'vida' || source === 'portoroz') {
         activeWeatherSource = source;
+        arsoForecastData = getActiveForecastData();
+        
+        // Toggle tab button visual state immediately
+        const btnPortoroz = document.getElementById('tab-portoroz');
+        const btnVida = document.getElementById('tab-vida');
+        if (btnPortoroz && btnVida) {
+            if (source === 'vida') {
+                btnVida.classList.add('active');
+                btnPortoroz.classList.remove('active');
+            } else {
+                btnPortoroz.classList.add('active');
+                btnVida.classList.remove('active');
+            }
+        }
+        
         renderWeather();
         renderArsoForecast();
         if (activeHourlyDayOffset !== null) {

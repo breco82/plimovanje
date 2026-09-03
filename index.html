@@ -17,7 +17,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <!-- CSS Stylesheet -->
-    <link rel="stylesheet" href="index.css?v=42">
+    <link rel="stylesheet" href="index.css?v=43">
     <link rel="manifest" href="manifest.json">
     
     <!-- Highcharts Stock Library -->
@@ -176,9 +176,9 @@
                 </div>
                 
                 <!-- Location Tabs (Portorož / Piran) -->
-                <div class="weather-tabs" style="display: flex; gap: 6px; margin-bottom: 18px; background: var(--border-color); padding: 4px; border-radius: 8px; font-size: 0.82rem; max-width: 360px;">
-                    <button class="weather-tab-btn active" id="tab-portoroz" onclick="setWeatherSource('portoroz')" style="flex: 1; text-align: center; padding: 7px 0; border: none; background: transparent; border-radius: 6px; color: var(--text-secondary); cursor: pointer; font-weight: 600; transition: all 0.2s;">Letališče Portorož</button>
-                    <button class="weather-tab-btn" id="tab-vida" onclick="setWeatherSource('vida')" style="flex: 1; text-align: center; padding: 7px 0; border: none; background: transparent; border-radius: 6px; color: var(--text-secondary); cursor: pointer; font-weight: 600; transition: all 0.2s;">Piran (Boja Vida)</button>
+                <div class="weather-tabs" style="display: flex; gap: 8px; margin-bottom: 20px; background: var(--border-color); padding: 5px; border-radius: 10px; max-width: 440px; width: 100%;">
+                    <button class="weather-tab-btn active" id="tab-portoroz" onclick="setWeatherSource('portoroz')" style="flex: 1; text-align: center; padding: 10px 12px; border: none; background: transparent; border-radius: 8px; color: var(--text-secondary); cursor: pointer; font-size: 0.92rem; font-weight: 700; transition: all 0.2s;">Letališče Portorož</button>
+                    <button class="weather-tab-btn" id="tab-vida" onclick="setWeatherSource('vida')" style="flex: 1; text-align: center; padding: 10px 12px; border: none; background: transparent; border-radius: 8px; color: var(--text-secondary); cursor: pointer; font-size: 0.92rem; font-weight: 700; transition: all 0.2s;">Piran (Boja Vida)</button>
                 </div>
 
                 <!-- Center Weather Icon, Condition Description & Main Temperature -->
@@ -225,7 +225,7 @@
 
                 <!-- Vremenska napoved (3 dni + urni/3-urni trak) -->
                 <div class="forecast-section" style="margin-bottom: 24px;">
-                    <h3 style="margin: 0 0 12px 0; font-size: 1.05rem; font-weight: 600;">Vremenska napoved (ARSO ALADIN)</h3>
+                    <h3 id="forecast-section-title" style="margin: 0 0 12px 0; font-size: 1.12rem; font-weight: 700;">Vremenska napoved Letališče Portorož (ARSO ALADIN)</h3>
                     <div class="forecast-container" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; width: 100%;">
                         <!-- Danes -->
                         <div class="forecast-day-card today-card" id="forecast-card-0" onclick="toggleHourlyForecast(0)">
@@ -363,8 +363,8 @@
     </div>
 
     <!-- Application Logic Scripts -->
-    <script src="Arcots.js?v=42"></script>
-    <script src="TideCalculator.js?v=42"></script>
-    <script src="index.js?v=42"></script>
+    <script src="Arcots.js?v=43"></script>
+    <script src="TideCalculator.js?v=43"></script>
+    <script src="index.js?v=43"></script>
 </body>
 </html>

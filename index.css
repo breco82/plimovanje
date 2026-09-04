@@ -1145,11 +1145,30 @@ body.light-theme .wind-arrow {
     color: #475569;
 }
 
-/* Custom Highcharts Tooltip Container */
+/* Custom Highcharts Tooltip Container & SVG path suppression */
+.highcharts-tooltip-box {
+    fill: transparent !important;
+    stroke: transparent !important;
+    stroke-width: 0 !important;
+    filter: none !important;
+}
+
+.highcharts-tooltip {
+    pointer-events: none !important;
+}
+
+.highcharts-tooltip foreignObject {
+    overflow: visible !important;
+}
+
 .chart-custom-tooltip {
     font-family: 'Inter', sans-serif;
     font-size: 11px;
     line-height: 1.35;
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-select: none;
 }
+
 
 

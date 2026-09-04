@@ -77,11 +77,11 @@ function getWaveSvgOnly(heightM) {
     if (heightM === null || heightM === undefined || isNaN(heightM)) return '';
     const h = parseFloat(heightM);
     if (h <= 0.5) {
-        return `<svg style="width:13px;height:8px;fill:none;stroke:#22c55e;stroke-width:2.5;stroke-linecap:round;display:inline-block;vertical-align:middle;" viewBox="0 0 24 12"><path d="M0 6 Q6 0, 12 6 T24 6"/></svg>`;
+        return `<svg width="13" height="8" viewBox="0 0 24 12" style="width:13px;height:8px;fill:none;stroke:#22c55e;stroke-width:2.5;stroke-linecap:round;display:inline-block;vertical-align:middle;"><path d="M0 6 Q6 0, 12 6 T24 6"/></svg>`;
     } else if (h <= 1.25) {
-        return `<svg style="width:13px;height:10px;fill:none;stroke:#38bdf8;stroke-width:2.2;stroke-linecap:round;display:inline-block;vertical-align:middle;" viewBox="0 0 24 16"><path d="M0 5 Q6 0, 12 5 T24 5 M0 11 Q6 6, 12 11 T24 11"/></svg>`;
+        return `<svg width="13" height="10" viewBox="0 0 24 16" style="width:13px;height:10px;fill:none;stroke:#38bdf8;stroke-width:2.2;stroke-linecap:round;display:inline-block;vertical-align:middle;"><path d="M0 5 Q6 0, 12 5 T24 5 M0 11 Q6 6, 12 11 T24 11"/></svg>`;
     } else if (h <= 2.5) {
-        return `<svg style="width:13px;height:12px;fill:none;stroke:#f59e0b;stroke-width:2.2;stroke-linecap:round;display:inline-block;vertical-align:middle;" viewBox="0 0 24 20"><path d="M0 4 Q6 -2, 12 4 T24 4 M0 10 Q6 4, 12 10 T24 10 M0 16 Q6 10, 12 16 T24 16"/></svg>`;
+        return `<svg width="13" height="12" viewBox="0 0 24 20" style="width:13px;height:12px;fill:none;stroke:#f59e0b;stroke-width:2.2;stroke-linecap:round;display:inline-block;vertical-align:middle;"><path d="M0 4 Q6 -2, 12 4 T24 4 M0 10 Q6 4, 12 10 T24 10 M0 16 Q6 10, 12 16 T24 16"/></svg>`;
     } else {
         return `<i class="fa-solid fa-triangle-exclamation" style="color:#ef4444;font-size:0.65rem;display:inline-block;vertical-align:middle;"></i>`;
     }
@@ -1520,7 +1520,7 @@ async function loadWeather() {
         console.warn("Could not fetch Bazdara Firebase directly:", e);
     }
     
-    // If Firebase returned data, immediately populate Boja Vida so it never gets stuck on "Nalaganje..."
+    // If Firebase returned data, immediately populate both stations so UI is never blank
     if (firebaseData) {
         const tempAir = parseFloat(firebaseData.temp?.zdaj || "0");
         const hum = parseFloat(firebaseData.vlaga || "65");
@@ -1536,7 +1536,7 @@ async function loadWeather() {
         
         const nowTimeStr = new Date().toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
         
-        weatherDataVida = {
+        const baselineData = {
             description: desc,
             temp: tempAir,
             feelsLike: feelsLike,
@@ -1545,13 +1545,18 @@ async function loadWeather() {
             windSpeedMs: windMs,
             windSpeedKmh: windKmh,
             windDirDeg: windDir,
-            windDirStr: getWindCompassDirection(windDir),
+            windDirStr: getWindDirectionSlo(windDir),
             iconName: firebaseData.vreme?.zdaj_slika_new || "clear",
             validTime: nowTimeStr,
             waveHeight: waveH > 0 ? waveH : (currentMarineWaveHeight || 0.2)
         };
         
-        // Render immediately with Firebase data
+        weatherDataVida = { ...baselineData };
+        if (!weatherDataPortoroz) {
+            weatherDataPortoroz = { ...baselineData };
+        }
+        
+        // Render immediately with baseline data
         renderWeather();
     }
     
@@ -1596,7 +1601,7 @@ async function loadWeather() {
         weatherDataVida.pressure = weatherDataPortoroz.pressure;
     }
     
-    // Re-render the active tab
+    // Re-render the active tab with updated station data
     renderWeather();
 }
 
@@ -1616,31 +1621,14 @@ function parseArsoXmlDate(dateStr) {
             return new Date(year, month, day, hour, minute, second);
         }
     }
+    if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(dateStr.trim())) {
+        const now = new Date();
+        const tParts = dateStr.trim().split(':');
+        now.setHours(parseInt(tParts[0], 10), parseInt(tParts[1], 10), 0, 0);
+        return now;
+    }
     const d = new Date(dateStr);
     return isNaN(d.getTime()) ? null : d;
-}
-
-// Get wave height for a specific forecast timestamp
-function getWaveHeightForTime(dateObj) {
-    if (!dateObj) return 0.2;
-    if (marineHourlyWaves && marineHourlyWaves.length > 0) {
-        const timeMs = dateObj.getTime();
-        let bestWave = null;
-        let minDiff = 3600 * 1000 * 3;
-        for (const w of marineHourlyWaves) {
-            const wMs = new Date(w.time).getTime();
-            const diff = Math.abs(wMs - timeMs);
-            if (diff < minDiff) {
-                minDiff = diff;
-                bestWave = w.height;
-            }
-        }
-        if (bestWave !== null) return bestWave;
-    }
-    if (weatherDataVida && weatherDataVida.waveHeight !== null && weatherDataVida.waveHeight !== undefined) {
-        return weatherDataVida.waveHeight;
-    }
-    return currentMarineWaveHeight || 0.2;
 }
 
 // Find forecast point in ARSO timeline matching a specific time

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'plima-tracker-v45';
+const CACHE_NAME = 'plima-tracker-v47';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -14,17 +14,17 @@ const ASSETS_TO_CACHE = [
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'
 ];
 
-// Install Event
+// Install Event - cache core shell immediately
 self.addEventListener('install', event => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => {
-      console.log('Caching shell assets...');
       return cache.addAll(ASSETS_TO_CACHE);
-    }).then(() => self.skipWaiting())
+    })
   );
 });
 
-// Activate Event
+// Activate Event - purge outdated caches and claim clients immediately
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys => {
@@ -35,27 +35,36 @@ self.addEventListener('activate', event => {
   );
 });
 
-// Fetch Event (Network First, falling back to cache if offline)
+// Fetch Event - Stale-While-Revalidate for app assets, pure network for all APIs
 self.addEventListener('fetch', event => {
-  // Avoid caching ARSO HTML tables or Bazdara API requests, we want live measurements
-  if (event.request.url.includes('arso.gov.si') || event.request.url.includes('bazdara-99a47') || event.request.url.includes('/api/')) {
+  const url = event.request.url;
+
+  // Never cache live measurement or forecast endpoints
+  if (url.includes('arso.gov.si') || 
+      url.includes('bazdara-99a47') || 
+      url.includes('script.google.com') || 
+      url.includes('open-meteo.com') || 
+      url.includes('corsproxy.io') || 
+      url.includes('allorigins.win') || 
+      url.includes('/api/')) {
     event.respondWith(fetch(event.request));
     return;
   }
 
+  // Stale-While-Revalidate for static assets (opens instantly < 50ms)
   event.respondWith(
-    fetch(event.request)
-      .then(response => {
-        // Clone response and cache it
-        const resClone = response.clone();
-        caches.open(CACHE_NAME).then(cache => {
-          cache.put(event.request, resClone);
-        });
-        return response;
-      })
-      .catch(() => {
-        // If network fails, serve from cache
-        return caches.match(event.request);
-      })
+    caches.match(event.request).then(cachedResponse => {
+      const fetchPromise = fetch(event.request).then(networkResponse => {
+        if (networkResponse && networkResponse.status === 200) {
+          const resClone = networkResponse.clone();
+          caches.open(CACHE_NAME).then(cache => {
+            cache.put(event.request, resClone);
+          });
+        }
+        return networkResponse;
+      }).catch(() => cachedResponse);
+
+      return cachedResponse || fetchPromise;
+    })
   );
 });

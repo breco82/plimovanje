@@ -194,14 +194,33 @@ document.addEventListener('DOMContentLoaded', () => {
     updateMoonPhase();
     setInterval(updateMoonPhase, 3600000); // refresh moon phase every hour
 
-    // Reset initial UI displays to loading placeholders
-    document.getElementById('current-level-val').textContent = "--";
-    document.getElementById('relative-level-val').textContent = "Absolutna gladina: Nalaganje...";
-    document.getElementById('current-temp-val').textContent = "--";
-    const timeEl = document.getElementById('level-time-val');
-    if (timeEl) timeEl.textContent = "Nalaganje meritev...";
+    // Instant restore of cached water data from localStorage for 0ms initial load
+    try {
+        const cachedWater = localStorage.getItem('arso_actual_data');
+        if (cachedWater) {
+            const parsed = JSON.parse(cachedWater).map(item => ({
+                time: new Date(item.time),
+                level: parseFloat(item.level),
+                temp: parseFloat(item.temp)
+            }));
+            if (parsed.length > 0) {
+                actualData = parsed;
+                const latest = actualData[actualData.length - 1];
+                const relVal = latest.level - MEAN_SEA_LEVEL_OFFSET;
+                const relSign = relVal >= 0 ? '+' : '';
+                document.getElementById('current-level-val').textContent = `${relSign}${Math.round(relVal)}`;
+                document.getElementById('relative-level-val').textContent = `Absolutna gladina: ${Math.round(latest.level)} cm`;
+                document.getElementById('current-temp-val').textContent = latest.temp.toFixed(1);
+                updateWaterGauge(relVal);
+                calculateTideExtrema(new Date());
+                renderChart();
+            }
+        }
+    } catch (e) {
+        console.warn("Could not restore cached data:", e);
+    }
     
-    // Load meteorological data from Bazdara Firebase (CORS-free)
+    // Load meteorological data from Bazdara Firebase & ARSO
     loadWeather();
     setInterval(loadWeather, 60000); // refresh weather every minute
     
@@ -1455,7 +1474,7 @@ async function parseArsoAmsXml(stationId, cb) {
         const windDirStr = getValue("dd_shortText") || getValue("ddavg_shortText") || "";
 
         const rawP = getValue("p") || getValue("msl");
-        const pressure = rawP && !isNaN(parseFloat(rawP)) ? parseFloat(rawP) : 1013;
+        const pressure = rawP && !isNaN(parseFloat(rawP)) && parseFloat(rawP) > 800 ? parseFloat(rawP) : null;
         
         const iconName = getValue("nn_icon-wwsyn_icon") || getValue("clouds_icon_wwsyn_icon") || "";
         let desc = getValue("nn_shortText-wwsyn_longText") || getValue("clouds_shortText") || "";
@@ -1486,78 +1505,79 @@ async function parseArsoAmsXml(stationId, cb) {
     }
 }
 
-// Fetch weather conditions from both Vida Buoy (ARSO PIRAN_OCEAN-BOJ) and Letališče Portorož (ARSO PORTOROZ_SECOVLJE)
+// Fetch weather conditions from both Vida Buoy (ARSO PIRAN_OCEAN-BOJ / Bazdara) and Letališče Portorož (ARSO PORTOROZ_SECOVLJE)
 async function loadWeather() {
     const cb = Date.now();
     
-    // 1. Fetch Vida Buoy (PIRAN_OCEAN-BOJ) from ARSO XML directly + waves from Bazdara Firebase
-    const fetchVida = async () => {
+    // 1. Fetch Bazdara Firebase immediately (ultra fast ~100ms, CORS-free, always online)
+    let firebaseData = null;
+    try {
+        const res = await fetch(`https://bazdara-99a47.firebaseio.com/trenutno.json?cb=${cb}`);
+        if (res.ok) {
+            firebaseData = await res.json();
+        }
+    } catch (e) {
+        console.warn("Could not fetch Bazdara Firebase directly:", e);
+    }
+    
+    // If Firebase returned data, immediately populate Boja Vida so it never gets stuck on "Nalaganje..."
+    if (firebaseData) {
+        const tempAir = parseFloat(firebaseData.temp?.zdaj || "0");
+        const hum = parseFloat(firebaseData.vlaga || "65");
+        const press = parseFloat(firebaseData.tlak || "1013");
+        const windMs = parseFloat(firebaseData.veter?.zdaj || "0");
+        const windKmh = windMs * 3.6;
+        const windDir = parseFloat(firebaseData.veter?.smer || "0");
+        const waveH = parseFloat(firebaseData.val?.zdaj || "0");
+        const desc = firebaseData.vreme?.zdaj || "jasno";
+        
+        const e = (hum / 100.0) * 6.105 * Math.exp((17.27 * tempAir) / (237.7 + tempAir));
+        const feelsLike = tempAir + 0.33 * e - 0.7 * windMs - 4.0;
+        
+        const nowTimeStr = new Date().toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
+        
+        weatherDataVida = {
+            description: desc,
+            temp: tempAir,
+            feelsLike: feelsLike,
+            pressure: press,
+            humidity: hum,
+            windSpeedMs: windMs,
+            windSpeedKmh: windKmh,
+            windDirDeg: windDir,
+            windDirStr: getWindCompassDirection(windDir),
+            iconName: firebaseData.vreme?.zdaj_slika_new || "clear",
+            validTime: nowTimeStr,
+            waveHeight: waveH > 0 ? waveH : (currentMarineWaveHeight || 0.2)
+        };
+        
+        // Render immediately with Firebase data
+        renderWeather();
+    }
+    
+    // 2. Fetch official ARSO XML in parallel to get official high-precision station data
+    const fetchVidaXml = async () => {
         try {
             const amsData = await parseArsoAmsXml("PIRAN_OCEAN-BOJ", cb);
-            
-            // Get wave height from Bazdara Firebase (still the only source for waves)
-            let waveHeight = 0;
-            try {
-                const res = await fetch(`https://bazdara-99a47.firebaseio.com/trenutno.json?cb=${cb}`);
-                if (res.ok) {
-                    const db = await res.json();
-                    if (db && db.val) {
-                        waveHeight = parseFloat(db.val.zdaj || "0");
-                    }
-                }
-            } catch (err) {
-                console.warn("Could not fetch wave height from Firebase:", err);
-            }
-            
-            // Fallback to Open-Meteo forecast for Strunjan if buoy waves are 0 (offline/missing)
-            if (waveHeight <= 0) {
-                let wh = currentMarineWaveHeight;
-                if (wh === null || wh === undefined) {
-                    try {
-                        const marineJson = await fetchWaveHeight();
-                        if (marineJson && marineJson.hourly) {
-                            const now = new Date();
-                            const timeMs = now.getTime();
-                            let closestIdx = 0;
-                            let minDiff = Infinity;
-                            for (let i = 0; i < marineJson.hourly.time.length; i++) {
-                                const itemTime = new Date(marineJson.hourly.time[i]);
-                                const diff = Math.abs(itemTime.getTime() - timeMs);
-                                if (diff < minDiff) {
-                                    minDiff = diff;
-                                    closestIdx = i;
-                                }
-                            }
-                            wh = marineJson.hourly.wave_height[closestIdx];
-                            currentMarineWaveHeight = wh;
-                        }
-                    } catch (whErr) {
-                        console.error("Could not fetch wave height fallback directly:", whErr);
-                    }
-                }
-                if (wh !== null && wh !== undefined) {
-                    waveHeight = wh;
-                    console.log(`Buoy wave height is offline (0), falling back to Open-Meteo: ${waveHeight} m`);
-                }
-            }
-            
             if (amsData) {
+                const currentWave = (weatherDataVida && weatherDataVida.waveHeight > 0) ? weatherDataVida.waveHeight : (currentMarineWaveHeight || 0.2);
+                const currentPress = amsData.pressure || (weatherDataPortoroz ? weatherDataPortoroz.pressure : (weatherDataVida ? weatherDataVida.pressure : 1018));
                 weatherDataVida = {
                     ...amsData,
-                    waveHeight: waveHeight
+                    waveHeight: currentWave,
+                    pressure: currentPress
                 };
             }
         } catch (e) {
-            console.error("Error loading Vida buoy data:", e);
+            console.error("Error loading Vida buoy XML:", e);
         }
     };
 
-    // 2. Fetch Portorož Airport (PORTOROZ_SECOVLJE) from ARSO XML directly
-    const fetchPortoroz = async () => {
+    const fetchPortorozXml = async () => {
         try {
             const amsData = await parseArsoAmsXml("PORTOROZ_SECOVLJE", cb);
             if (amsData) {
-                const portorozWave = weatherDataVida ? weatherDataVida.waveHeight : currentMarineWaveHeight;
+                const portorozWave = weatherDataVida ? weatherDataVida.waveHeight : (currentMarineWaveHeight || 0.2);
                 weatherDataPortoroz = {
                     ...amsData,
                     waveHeight: portorozWave
@@ -1568,10 +1588,15 @@ async function loadWeather() {
         }
     };
 
-    // Run fetches in parallel
-    await Promise.all([fetchVida(), fetchPortoroz()]);
+    // Run XML fetches in parallel
+    await Promise.all([fetchVidaXml(), fetchPortorozXml()]);
     
-    // Render the active tab
+    // If Vida buoy has empty barometer pressure, borrow from Portorož Airport
+    if (weatherDataVida && weatherDataPortoroz && (!weatherDataVida.pressure || weatherDataVida.pressure === 1013)) {
+        weatherDataVida.pressure = weatherDataPortoroz.pressure;
+    }
+    
+    // Re-render the active tab
     renderWeather();
 }
 
@@ -2101,16 +2126,12 @@ function renderChart() {
             crosshairs: true,
             useHTML: true,
             followTouchMove: false,
-            backgroundColor: isLight ? 'rgba(255, 255, 255, 0.96)' : 'rgba(15, 23, 42, 0.95)',
-            borderColor: isLight ? 'rgba(14, 165, 233, 0.45)' : 'rgba(56, 189, 248, 0.4)',
-            borderWidth: 1,
-            borderRadius: 12,
-            shadow: {
-                color: isLight ? 'rgba(0, 0, 0, 0.12)' : 'rgba(0, 0, 0, 0.65)',
-                width: 12,
-                offsetX: 0,
-                offsetY: 4
-            },
+            backgroundColor: 'transparent',
+            borderColor: 'transparent',
+            borderWidth: 0,
+            borderRadius: 0,
+            shadow: false,
+            padding: 0,
             style: {
                 color: isLight ? '#0f172a' : '#f8fafc',
                 fontSize: '11px',
@@ -2123,7 +2144,17 @@ function renderChart() {
                 const dayStr = String(dateObj.getDate()).padStart(2, '0') + '.' + String(dateObj.getMonth() + 1).padStart(2, '0') + '.';
                 const timeStr = Highcharts.dateFormat('%H:%M', this.x);
                 
-                let s = `<div class="chart-custom-tooltip" style="padding: 2px 3px; min-width: 140px;">`;
+                let s = `<div class="chart-custom-tooltip" style="
+                    background: ${isLight ? 'rgba(255, 255, 255, 0.96)' : 'rgba(15, 23, 42, 0.96)'};
+                    border: 1px solid ${isLight ? 'rgba(14, 165, 233, 0.45)' : 'rgba(56, 189, 248, 0.4)'};
+                    border-radius: 12px;
+                    padding: 8px 10px;
+                    min-width: 155px;
+                    box-shadow: 0 4px 16px ${isLight ? 'rgba(0, 0, 0, 0.12)' : 'rgba(0, 0, 0, 0.65)'};
+                    color: ${isLight ? '#0f172a' : '#f8fafc'};
+                    box-sizing: border-box;
+                ">`;
+                
                 s += `<div style="font-weight:700; font-size:11px; margin-bottom:4px; color:${isLight ? '#0f172a' : '#f8fafc'}; border-bottom:1px solid ${isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.12)'}; padding-bottom:3px;">
                         ${dayName}, ${dayStr} ob ${timeStr}
                       </div>`;
@@ -2153,32 +2184,38 @@ function renderChart() {
                 });
                 s += `</div>`;
                 
-                // Weather preview lookup for this exact timestamp
-                const fcItem = getForecastItemForTime(dateObj);
-                if (fcItem) {
-                    const tVal = Math.round(parseFloat(fcItem.t));
-                    const iconName = fcItem.clouds_icon_wwsyn_icon || "";
-                    const windSpeedKmh = Math.round(parseFloat(fcItem.ff_val || "0"));
-                    const windDir = fcItem.dd_shortText || "";
-                    const windDirDeg = getWindDegFromSlo(windDir);
-                    const windArrow = getWindArrowHtml(windDirDeg);
-                    const waveH = getWaveHeightForTime(dateObj);
-                    const waveSvg = getWaveSvgOnly(waveH);
-                    
-                    s += `<div style="margin-top:6px; padding-top:5px; border-top:1px dashed ${isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.15)'};">
-                            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:3px;">
-                                <div style="display:flex; align-items:center; gap:5px;">
-                                    ${getWeatherIconHtml(iconName, "1.15rem")}
-                                    <span style="font-weight:700; font-size:11px;">${tVal}°C</span>
+                // Weather preview lookup for this timestamp - ONLY for current and future points!
+                const nowMs = Date.now();
+                const pointTimeMs = dateObj.getTime();
+                
+                if (pointTimeMs >= nowMs - (30 * 60 * 1000)) {
+                    const fcItem = getForecastItemForTime(dateObj);
+                    if (fcItem) {
+                        const tVal = Math.round(parseFloat(fcItem.t));
+                        const iconName = fcItem.clouds_icon_wwsyn_icon || "";
+                        const windSpeedKmh = Math.round(parseFloat(fcItem.ff_val || "0"));
+                        const windDir = fcItem.dd_shortText || "";
+                        const windDirDeg = getWindDegFromSlo(windDir);
+                        const windArrow = getWindArrowHtml(windDirDeg);
+                        const waveH = getWaveHeightForTime(dateObj);
+                        const waveSvg = getWaveSvgOnly(waveH);
+                        
+                        s += `<div style="margin-top:6px; padding-top:5px; border-top:1px dashed ${isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.15)'};">
+                                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:3px;">
+                                    <div style="display:flex; align-items:center; gap:5px;">
+                                        ${getWeatherIconHtml(iconName, "1.15rem")}
+                                        <span style="font-weight:700; font-size:11px;">${tVal}°C</span>
+                                    </div>
+                                    <div style="font-size:10px; display:flex; align-items:center; gap:3px;">
+                                        ${windArrow}<span>${windSpeedKmh} km/h ${windDir}</span>
+                                    </div>
                                 </div>
-                                <div style="font-size:10px; display:flex; align-items:center; gap:3px;">
-                                    ${windArrow}<span>${windSpeedKmh} km/h ${windDir}</span>
+                                <div style="font-size:10px; display:flex; align-items:center; justify-content:space-between; gap:4px; opacity:0.85;">
+                                    <span>Valovi:</span>
+                                    <span style="display:inline-flex; align-items:center; gap:4px;">${waveSvg} <b style="font-weight:600;">${waveH.toFixed(2)} m</b></span>
                                 </div>
-                            </div>
-                            <div style="font-size:10px; display:flex; align-items:center; justify-content:flex-end; gap:4px; opacity:0.85;">
-                                <span>Valovi:</span> ${waveSvg} <span style="font-weight:600;">${waveH.toFixed(2)} m</span>
-                            </div>
-                          </div>`;
+                              </div>`;
+                    }
                 }
                 
                 s += `</div>`;

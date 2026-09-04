@@ -25,6 +25,25 @@ const MEAN_SEA_LEVEL_OFFSET = 217.0;
 
 let deferredPrompt = null;
 
+// Helper to parse ISO strings without timezone (e.g. "2026-09-04T14:00") as exact local device time
+function parseIsoLocal(isoStr) {
+    if (!isoStr) return new Date();
+    if (isoStr instanceof Date) return isoStr;
+    const str = String(isoStr).trim();
+    if (str.endsWith('Z') || str.includes('+') || (str.lastIndexOf('-') > 7)) {
+        return new Date(str);
+    }
+    const parts = str.split(/[T\s]/);
+    if (parts.length >= 2) {
+        const dParts = parts[0].split('-').map(Number);
+        const tParts = parts[1].split(':').map(Number);
+        if (dParts.length === 3 && tParts.length >= 2) {
+            return new Date(dParts[0], dParts[1] - 1, dParts[2], tParts[0], tParts[1], tParts[2] || 0);
+        }
+    }
+    return new Date(str);
+}
+
 // Helper: Official Douglas Sea Scale
 function getDouglasSeaState(heightM) {
     if (heightM === null || heightM === undefined || isNaN(heightM)) {
@@ -52,22 +71,22 @@ function getWaveIconHtml(heightM) {
     if (h <= 0.5) {
         return `<span style="display:inline-flex;align-items:center;gap:3px;color:#22c55e;font-size:0.72rem;font-weight:600;" title="Rahlo vzvalovano (${h.toFixed(2)} m)">
             <svg style="width:13px;height:8px;fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;" viewBox="0 0 24 12"><path d="M0 6 Q6 0, 12 6 T24 6"/></svg>
-            ${h.toFixed(1)}m
+            ${h.toFixed(2)} m
         </span>`;
     } else if (h <= 1.25) {
         return `<span style="display:inline-flex;align-items:center;gap:3px;color:#38bdf8;font-size:0.72rem;font-weight:600;" title="Zmerno vzvalovano (${h.toFixed(2)} m)">
             <svg style="width:13px;height:10px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;" viewBox="0 0 24 16"><path d="M0 5 Q6 0, 12 5 T24 5 M0 11 Q6 6, 12 11 T24 11"/></svg>
-            ${h.toFixed(1)}m
+            ${h.toFixed(2)} m
         </span>`;
     } else if (h <= 2.5) {
         return `<span style="display:inline-flex;align-items:center;gap:3px;color:#f59e0b;font-size:0.72rem;font-weight:600;" title="Vzvalovano (${h.toFixed(2)} m)">
             <svg style="width:13px;height:12px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;" viewBox="0 0 24 20"><path d="M0 4 Q6 -2, 12 4 T24 4 M0 10 Q6 4, 12 10 T24 10 M0 16 Q6 10, 12 16 T24 16"/></svg>
-            ${h.toFixed(1)}m
+            ${h.toFixed(2)} m
         </span>`;
     } else {
         return `<span style="display:inline-flex;align-items:center;gap:3px;color:#ef4444;font-size:0.72rem;font-weight:700;" title="Močno valovito (${h.toFixed(2)} m)">
             <i class="fa-solid fa-triangle-exclamation" style="font-size:0.65rem;"></i>
-            ${h.toFixed(1)}m
+            ${h.toFixed(2)} m
         </span>`;
     }
 }
@@ -766,7 +785,7 @@ async function loadArsoForecast() {
                 let minDiff = Infinity;
                 
                 for (let i = 0; i < marineJson.hourly.time.length; i++) {
-                    const itemTime = new Date(marineJson.hourly.time[i]);
+                    const itemTime = parseIsoLocal(marineJson.hourly.time[i]);
                     const whVal = marineJson.hourly.wave_height[i];
                     marineHourlyWaves.set(itemTime.getTime(), whVal);
                     
@@ -1140,7 +1159,7 @@ async function loadOpenMeteoPressures() {
             const pressuresDubrovnik = json[1].hourly.pressure_msl;
             
             for (let i = 0; i < times.length; i++) {
-                const date = new Date(times[i]);
+                const date = parseIsoLocal(times[i]);
                 const timeMs = date.getTime();
                 meteoForecastMap.set(timeMs, {
                     pressureKoper: pressuresKoper[i],
@@ -1156,7 +1175,7 @@ async function loadOpenMeteoPressures() {
             startOfToday.setHours(0, 0, 0, 0);
             
             for (let i = 0; i < hourly.time.length; i++) {
-                const date = new Date(hourly.time[i]);
+                const date = parseIsoLocal(hourly.time[i]);
                 if (date >= startOfToday) {
                     openMeteoHourlyForecast.push({
                         time: date,

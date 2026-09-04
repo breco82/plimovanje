@@ -1,4 +1,4 @@
-const CACHE_NAME = 'plima-tracker-v49';
+const CACHE_NAME = 'plima-tracker-v50';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

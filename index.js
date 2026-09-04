@@ -2094,6 +2094,7 @@ function renderChart() {
             }] : []
         },
         tooltip: {
+            split: false,
             shared: true,
             crosshairs: true,
             useHTML: true,

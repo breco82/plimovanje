@@ -2175,18 +2175,17 @@ function renderChart() {
                         const waveH = getWaveHeightForTime(dateObj);
                         const waveHtml = getWaveTooltipHtml(waveH);
                         
-                        s += `<div style="margin-top:6px; padding-top:5px; border-top:1px dashed ${isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.15)'};">
-                                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:3px;">
+                        s += `<div style="margin-top:8px; padding-top:6px; border-top:1px dashed ${isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.15)'}; display:flex; flex-direction:column; gap:5px;">
+                                <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
                                     <div style="display:flex; align-items:center; gap:5px;">
                                         ${getWeatherIconHtml(iconName, "1.15rem")}
                                         <span style="font-weight:700; font-size:11px;">${tVal}°C</span>
                                     </div>
-                                    <div style="font-size:10px; display:flex; align-items:center; gap:3px;">
-                                        <span style="font-weight:bold; font-size:11px;">${windArrow}</span><span>${windSpeedKmh} km/h ${windDir}</span>
+                                    <div style="font-size:10.5px; font-weight:600; display:flex; align-items:center; gap:4px;">
+                                        <span style="font-weight:bold; font-size:12px;">${windArrow}</span><span>${windSpeedKmh} km/h</span>
                                     </div>
                                 </div>
-                                <div style="font-size:10px; display:flex; align-items:center; justify-content:space-between; gap:4px; opacity:0.85;">
-                                    <span>Valovi:</span>
+                                <div style="display:flex; align-items:center; justify-content:flex-end;">
                                     ${waveHtml}
                                 </div>
                               </div>`;

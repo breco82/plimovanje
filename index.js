@@ -72,19 +72,31 @@ function getWaveIconHtml(heightM) {
     }
 }
 
-// Helper: Wave SVG only (without text for compact tooltip)
-function getWaveSvgOnly(heightM) {
+// Helper: Clean Unicode wind arrow pointing in direction the wind is blowing TO
+function getWindArrowUnicode(deg) {
+    if (deg === null || deg === undefined || isNaN(deg)) return "";
+    // deg is direction wind is blowing FROM (0 = North). Wind blows TO (deg + 180).
+    const toDeg = (parseFloat(deg) + 180) % 360;
+    const arrows = ["↑", "↗", "→", "↘", "↓", "↙", "←", "↖"];
+    const idx = Math.round(toDeg / 45) % 8;
+    return arrows[idx];
+}
+
+// Helper: Pure HTML/CSS wave badge for chart tooltip (100% SVG-free to prevent detachment on mobile)
+function getWaveTooltipHtml(heightM) {
     if (heightM === null || heightM === undefined || isNaN(heightM)) return '';
     const h = parseFloat(heightM);
-    if (h <= 0.5) {
-        return `<svg width="13" height="8" viewBox="0 0 24 12" style="width:13px;height:8px;fill:none;stroke:#22c55e;stroke-width:2.5;stroke-linecap:round;display:inline-block;vertical-align:middle;"><path d="M0 6 Q6 0, 12 6 T24 6"/></svg>`;
-    } else if (h <= 1.25) {
-        return `<svg width="13" height="10" viewBox="0 0 24 16" style="width:13px;height:10px;fill:none;stroke:#38bdf8;stroke-width:2.2;stroke-linecap:round;display:inline-block;vertical-align:middle;"><path d="M0 5 Q6 0, 12 5 T24 5 M0 11 Q6 6, 12 11 T24 11"/></svg>`;
-    } else if (h <= 2.5) {
-        return `<svg width="13" height="12" viewBox="0 0 24 20" style="width:13px;height:12px;fill:none;stroke:#f59e0b;stroke-width:2.2;stroke-linecap:round;display:inline-block;vertical-align:middle;"><path d="M0 4 Q6 -2, 12 4 T24 4 M0 10 Q6 4, 12 10 T24 10 M0 16 Q6 10, 12 16 T24 16"/></svg>`;
-    } else {
-        return `<i class="fa-solid fa-triangle-exclamation" style="color:#ef4444;font-size:0.65rem;display:inline-block;vertical-align:middle;"></i>`;
+    let color = '#22c55e'; // Green <= 0.5m
+    let icon = 'fa-water';
+    if (h > 0.5 && h <= 1.25) {
+        color = '#38bdf8'; // Blue 0.5 - 1.25m
+    } else if (h > 1.25 && h <= 2.5) {
+        color = '#f59e0b'; // Amber 1.25 - 2.5m
+    } else if (h > 2.5) {
+        color = '#ef4444'; // Red > 2.5m
+        icon = 'fa-triangle-exclamation';
     }
+    return `<span style="display:inline-flex; align-items:center; gap:4px; color:${color}; font-weight:600;"><i class="fa-solid ${icon}" style="font-size:10px;"></i> ${h.toFixed(2)} m</span>`;
 }
 
 // Helper: Get active forecast data based on selected location tab
@@ -194,32 +206,6 @@ document.addEventListener('DOMContentLoaded', () => {
     updateMoonPhase();
     setInterval(updateMoonPhase, 3600000); // refresh moon phase every hour
 
-    // Instant restore of cached water data from localStorage for 0ms initial load
-    try {
-        const cachedWater = localStorage.getItem('arso_actual_data');
-        if (cachedWater) {
-            const parsed = JSON.parse(cachedWater).map(item => ({
-                time: new Date(item.time),
-                level: parseFloat(item.level),
-                temp: parseFloat(item.temp)
-            }));
-            if (parsed.length > 0) {
-                actualData = parsed;
-                const latest = actualData[actualData.length - 1];
-                const relVal = latest.level - MEAN_SEA_LEVEL_OFFSET;
-                const relSign = relVal >= 0 ? '+' : '';
-                document.getElementById('current-level-val').textContent = `${relSign}${Math.round(relVal)}`;
-                document.getElementById('relative-level-val').textContent = `Absolutna gladina: ${Math.round(latest.level)} cm`;
-                document.getElementById('current-temp-val').textContent = latest.temp.toFixed(1);
-                updateWaterGauge(relVal);
-                calculateTideExtrema(new Date());
-                renderChart();
-            }
-        }
-    } catch (e) {
-        console.warn("Could not restore cached data:", e);
-    }
-    
     // Load meteorological data from Bazdara Firebase & ARSO
     loadWeather();
     setInterval(loadWeather, 60000); // refresh weather every minute
@@ -685,23 +671,11 @@ function getWeatherIconHtml(nnIcon, sizeStyle = "") {
         case "cloud-rain":
             return `<i class="fa-solid fa-cloud-rain" style="color: #38bdf8; ${size}"></i>`;
         case "cloud-sun":
-            return `
-            <span style="position: relative; display: inline-flex; align-items: center; justify-content: center; width: 1.2em; height: 1.2em; ${size}">
-                <i class="fa-solid fa-sun" style="color: #f59e0b; position: absolute; top: 0.05em; right: 0.05em; font-size: 0.85em; z-index: 1; margin: 0; padding: 0;"></i>
-                <i class="fa-solid fa-cloud" style="color: #38bdf8; position: absolute; bottom: 0.05em; left: 0.05em; font-size: 0.85em; z-index: 2; margin: 0; padding: 0;"></i>
-            </span>`;
+            return `<i class="fa-solid fa-cloud-sun" style="color: #f59e0b; ${size}"></i>`;
         case "cloud-moon":
-            return `
-            <span style="position: relative; display: inline-flex; align-items: center; justify-content: center; width: 1.2em; height: 1.2em; ${size}">
-                <i class="fa-solid fa-moon" style="color: #f59e0b; position: absolute; top: 0.05em; right: 0.05em; font-size: 0.85em; z-index: 1; margin: 0; padding: 0;"></i>
-                <i class="fa-solid fa-cloud" style="color: #38bdf8; position: absolute; bottom: 0.05em; left: 0.05em; font-size: 0.85em; z-index: 2; margin: 0; padding: 0;"></i>
-            </span>`;
+            return `<i class="fa-solid fa-cloud-moon" style="color: #f59e0b; ${size}"></i>`;
         case "cloud-bolt":
-            return `
-            <span style="position: relative; display: inline-flex; align-items: center; justify-content: center; width: 1.2em; height: 1.2em; ${size}">
-                <i class="fa-solid fa-cloud" style="color: #38bdf8; position: absolute; top: 0.05em; left: 0.05em; font-size: 0.85em; z-index: 1; margin: 0; padding: 0;"></i>
-                <i class="fa-solid fa-bolt" style="color: #f59e0b; position: absolute; bottom: 0.05em; right: 0.05em; font-size: 0.85em; z-index: 2; margin: 0; padding: 0;"></i>
-            </span>`;
+            return `<i class="fa-solid fa-cloud-bolt" style="color: #38bdf8; ${size}"></i>`;
     }
 }
 
@@ -1534,7 +1508,12 @@ async function loadWeather() {
         const e = (hum / 100.0) * 6.105 * Math.exp((17.27 * tempAir) / (237.7 + tempAir));
         const feelsLike = tempAir + 0.33 * e - 0.7 * windMs - 4.0;
         
-        const nowTimeStr = new Date().toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
+        // Determine realistic observation timestamp (rounded to last 10-minute cycle or from airport station)
+        const now = new Date();
+        const minSlot = Math.floor(now.getMinutes() / 10) * 10;
+        const slotDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), minSlot, 0);
+        const approxTimeStr = slotDate.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
+        const initialStationTime = (weatherDataPortoroz && weatherDataPortoroz.validTime) ? weatherDataPortoroz.validTime : approxTimeStr;
         
         const baselineData = {
             description: desc,
@@ -1547,7 +1526,7 @@ async function loadWeather() {
             windDirDeg: windDir,
             windDirStr: getWindDirectionSlo(windDir),
             iconName: firebaseData.vreme?.zdaj_slika_new || "clear",
-            validTime: nowTimeStr,
+            validTime: initialStationTime,
             waveHeight: waveH > 0 ? waveH : (currentMarineWaveHeight || 0.2)
         };
         
@@ -1597,8 +1576,13 @@ async function loadWeather() {
     await Promise.all([fetchVidaXml(), fetchPortorozXml()]);
     
     // If Vida buoy has empty barometer pressure, borrow from Portorož Airport
-    if (weatherDataVida && weatherDataPortoroz && (!weatherDataVida.pressure || weatherDataVida.pressure === 1013)) {
-        weatherDataVida.pressure = weatherDataPortoroz.pressure;
+    if (weatherDataVida && weatherDataPortoroz) {
+        if (!weatherDataVida.pressure || weatherDataVida.pressure === 1013) {
+            weatherDataVida.pressure = weatherDataPortoroz.pressure;
+        }
+        if (weatherDataPortoroz.validTime && (!weatherDataVida.validTime || weatherDataVida.validTime.length <= 5)) {
+            weatherDataVida.validTime = weatherDataPortoroz.validTime;
+        }
     }
     
     // Re-render the active tab with updated station data
@@ -2114,6 +2098,7 @@ function renderChart() {
             crosshairs: true,
             useHTML: true,
             followTouchMove: false,
+            outside: true,
             backgroundColor: 'transparent',
             borderColor: 'transparent',
             borderWidth: 0,
@@ -2123,7 +2108,8 @@ function renderChart() {
             style: {
                 color: isLight ? '#0f172a' : '#f8fafc',
                 fontSize: '11px',
-                fontFamily: 'Inter, sans-serif'
+                fontFamily: 'Inter, sans-serif',
+                zIndex: 9999
             },
             formatter: function () {
                 const days = ['Nedelja', 'Ponedeljek', 'Torek', 'Sreda', 'Četrtek', 'Petek', 'Sobota'];
@@ -2184,9 +2170,9 @@ function renderChart() {
                         const windSpeedKmh = Math.round(parseFloat(fcItem.ff_val || "0"));
                         const windDir = fcItem.dd_shortText || "";
                         const windDirDeg = getWindDegFromSlo(windDir);
-                        const windArrow = getWindArrowHtml(windDirDeg);
+                        const windArrow = getWindArrowUnicode(windDirDeg);
                         const waveH = getWaveHeightForTime(dateObj);
-                        const waveSvg = getWaveSvgOnly(waveH);
+                        const waveHtml = getWaveTooltipHtml(waveH);
                         
                         s += `<div style="margin-top:6px; padding-top:5px; border-top:1px dashed ${isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.15)'};">
                                 <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:3px;">
@@ -2195,12 +2181,12 @@ function renderChart() {
                                         <span style="font-weight:700; font-size:11px;">${tVal}°C</span>
                                     </div>
                                     <div style="font-size:10px; display:flex; align-items:center; gap:3px;">
-                                        ${windArrow}<span>${windSpeedKmh} km/h ${windDir}</span>
+                                        <span style="font-weight:bold; font-size:11px;">${windArrow}</span><span>${windSpeedKmh} km/h ${windDir}</span>
                                     </div>
                                 </div>
                                 <div style="font-size:10px; display:flex; align-items:center; justify-content:space-between; gap:4px; opacity:0.85;">
                                     <span>Valovi:</span>
-                                    <span style="display:inline-flex; align-items:center; gap:4px;">${waveSvg} <b style="font-weight:600;">${waveH.toFixed(2)} m</b></span>
+                                    ${waveHtml}
                                 </div>
                               </div>`;
                     }
